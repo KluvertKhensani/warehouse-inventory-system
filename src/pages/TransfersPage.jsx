@@ -1,4 +1,8 @@
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -9,6 +13,7 @@ import {
   Search,
 } from "lucide-react";
 import { transferReasons } from "../data/transferData";
+import { fetchProductLocationBalance } from "../services/inventoryBalanceService";
 
 const emptyTransferForm = {
   productSku: "",
@@ -18,10 +23,17 @@ const emptyTransferForm = {
   reason: "",
 };
 
+const emptySourceBalance = {
+  quantityOnHand: 0,
+  quantityReserved: 0,
+  quantityAvailable: 0,
+  balanceExists: false,
+};
+
 function TransfersPage({
-  products,
-  locations,
-  transfers,
+  products = [],
+  locations = [],
+  transfers = [],
   onCompleteTransfer,
 }) {
   const [formData, setFormData] = useState(
@@ -29,20 +41,112 @@ function TransfersPage({
   );
 
   const [errors, setErrors] = useState({});
-  const [searchQuery, setSearchQuery] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] =
+    useState("");
+  const [submitting, setSubmitting] =
+    useState(false);
+
+  const [
+    sourceBalanceLoading,
+    setSourceBalanceLoading,
+  ] = useState(false);
+
+  const [sourceBalance, setSourceBalance] =
+    useState(emptySourceBalance);
 
   const selectedProduct = products.find(
     (product) =>
       product.sku === formData.productSku
   );
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSourceBalance() {
+      const productSku =
+        formData.productSku.trim();
+
+      const sourceLocation =
+        formData.sourceLocation.trim();
+
+      if (!productSku || !sourceLocation) {
+        setSourceBalance(emptySourceBalance);
+        setSourceBalanceLoading(false);
+        return;
+      }
+
+      setSourceBalanceLoading(true);
+
+      try {
+        const balance =
+          await fetchProductLocationBalance(
+            productSku,
+            sourceLocation
+          );
+
+        if (!isMounted) {
+          return;
+        }
+
+        setSourceBalance(balance);
+
+        setErrors((current) => ({
+          ...current,
+          sourceLocation: "",
+          quantity: "",
+          form: "",
+        }));
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to load the source balance.";
+
+        setSourceBalance(emptySourceBalance);
+
+        setErrors((current) => ({
+          ...current,
+          sourceLocation: message,
+        }));
+      } finally {
+        if (isMounted) {
+          setSourceBalanceLoading(false);
+        }
+      }
+    }
+
+    loadSourceBalance();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    formData.productSku,
+    formData.sourceLocation,
+  ]);
+
   const transferQuantity = Number(
     formData.quantity || 0
   );
 
-  const availableQuantity = Number(
+  const productTotalAvailable = Number(
     selectedProduct?.available || 0
+  );
+
+  const sourceQuantityOnHand = Number(
+    sourceBalance.quantityOnHand || 0
+  );
+
+  const sourceQuantityReserved = Number(
+    sourceBalance.quantityReserved || 0
+  );
+
+  const availableQuantity = Number(
+    sourceBalance.quantityAvailable || 0
   );
 
   const remainingQuantity =
@@ -91,12 +195,16 @@ function TransfersPage({
       ];
 
       return searchableValues.some((value) =>
-        String(value)
+        String(value || "")
           .toLowerCase()
           .includes(normalizedSearch)
       );
     });
   }, [searchQuery, transfers]);
+
+  function resetSourceBalance() {
+    setSourceBalance(emptySourceBalance);
+  }
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -119,6 +227,8 @@ function TransfersPage({
           quantity: "",
         }));
 
+        resetSourceBalance();
+
         setErrors((current) => ({
           ...current,
           productSku: "",
@@ -127,6 +237,7 @@ function TransfersPage({
           quantity: "",
           form: "",
         }));
+
         break;
       }
 
@@ -138,14 +249,19 @@ function TransfersPage({
             current.destinationLocation === value
               ? ""
               : current.destinationLocation,
+          quantity: "",
         }));
+
+        resetSourceBalance();
 
         setErrors((current) => ({
           ...current,
           sourceLocation: "",
           destinationLocation: "",
+          quantity: "",
           form: "",
         }));
+
         break;
 
       case "destinationLocation":
@@ -159,6 +275,7 @@ function TransfersPage({
           destinationLocation: "",
           form: "",
         }));
+
         break;
 
       case "quantity":
@@ -172,6 +289,7 @@ function TransfersPage({
           quantity: "",
           form: "",
         }));
+
         break;
 
       case "reason":
@@ -185,6 +303,7 @@ function TransfersPage({
           reason: "",
           form: "",
         }));
+
         break;
 
       default:
@@ -203,6 +322,12 @@ function TransfersPage({
     if (!formData.sourceLocation) {
       nextErrors.sourceLocation =
         "Select the source location.";
+    } else if (sourceBalanceLoading) {
+      nextErrors.sourceLocation =
+        "Wait for the source balance to finish loading.";
+    } else if (!sourceBalance.balanceExists) {
+      nextErrors.sourceLocation =
+        "No inventory balance exists at the selected source location.";
     }
 
     if (!formData.destinationLocation) {
@@ -224,11 +349,10 @@ function TransfersPage({
       nextErrors.quantity =
         "Transfer quantity must be a whole number greater than zero.";
     } else if (
-      selectedProduct &&
       transferQuantity > availableQuantity
     ) {
       nextErrors.quantity =
-        "Transfer quantity exceeds available inventory.";
+        `Only ${availableQuantity} units are available at the selected source location.`;
     }
 
     if (!formData.reason) {
@@ -242,11 +366,15 @@ function TransfersPage({
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (submitting) {
+    if (
+      submitting ||
+      sourceBalanceLoading
+    ) {
       return;
     }
 
-    const validationErrors = validateForm();
+    const validationErrors =
+      validateForm();
 
     if (
       Object.keys(validationErrors).length > 0
@@ -309,16 +437,17 @@ function TransfersPage({
       }
 
       setFormData(emptyTransferForm);
+      setSourceBalance(emptySourceBalance);
       setErrors({});
     } catch (error) {
-      const errorMessage =
+      const message =
         error instanceof Error
           ? error.message
           : "Unable to complete the stock transfer.";
 
       setErrors((current) => ({
         ...current,
-        form: errorMessage,
+        form: message,
       }));
     } finally {
       setSubmitting(false);
@@ -340,6 +469,14 @@ function TransfersPage({
     (transfer) =>
       transfer.status === "Draft"
   ).length;
+
+  const sourceBalanceMessage =
+    formData.productSku &&
+    formData.sourceLocation &&
+    !sourceBalanceLoading &&
+    !sourceBalance.balanceExists
+      ? "No stock is recorded at this source location."
+      : "";
 
   return (
     <div className="transfers-page">
@@ -438,6 +575,15 @@ function TransfersPage({
               </div>
             )}
 
+            {sourceBalanceMessage && (
+              <div
+                className="product-form-error"
+                role="alert"
+              >
+                {sourceBalanceMessage}
+              </div>
+            )}
+
             <div className="form-grid">
               <div className="form-field form-field-full">
                 <label htmlFor="productSku">
@@ -485,7 +631,10 @@ function TransfersPage({
                   id="sourceLocation"
                   name="sourceLocation"
                   value={formData.sourceLocation}
-                  disabled={submitting}
+                  disabled={
+                    submitting ||
+                    sourceBalanceLoading
+                  }
                   aria-invalid={Boolean(
                     errors.sourceLocation
                   )}
@@ -527,6 +676,7 @@ function TransfersPage({
                   }
                   disabled={
                     submitting ||
+                    sourceBalanceLoading ||
                     !formData.sourceLocation
                   }
                   aria-invalid={Boolean(
@@ -570,7 +720,11 @@ function TransfersPage({
                   step="1"
                   value={formData.quantity}
                   placeholder="0"
-                  disabled={submitting}
+                  disabled={
+                    submitting ||
+                    sourceBalanceLoading ||
+                    !sourceBalance.balanceExists
+                  }
                   aria-invalid={Boolean(
                     errors.quantity
                   )}
@@ -593,7 +747,11 @@ function TransfersPage({
                   id="reason"
                   name="reason"
                   value={formData.reason}
-                  disabled={submitting}
+                  disabled={
+                    submitting ||
+                    sourceBalanceLoading ||
+                    !sourceBalance.balanceExists
+                  }
                   aria-invalid={Boolean(
                     errors.reason
                   )}
@@ -623,20 +781,40 @@ function TransfersPage({
 
             <div className="transfer-control-panel">
               <div>
-                <span>Product</span>
+                <span>Product total</span>
 
                 <strong>
-                  {selectedProduct
-                    ? selectedProduct.sku
-                    : "Not selected"}
+                  {productTotalAvailable.toLocaleString()}
                 </strong>
               </div>
 
               <div>
-                <span>Available</span>
+                <span>Source on hand</span>
 
                 <strong>
-                  {availableQuantity.toLocaleString()}
+                  {sourceBalanceLoading
+                    ? "Loading"
+                    : sourceQuantityOnHand.toLocaleString()}
+                </strong>
+              </div>
+
+              <div>
+                <span>Source reserved</span>
+
+                <strong>
+                  {sourceBalanceLoading
+                    ? "Loading"
+                    : sourceQuantityReserved.toLocaleString()}
+                </strong>
+              </div>
+
+              <div>
+                <span>Source available</span>
+
+                <strong>
+                  {sourceBalanceLoading
+                    ? "Loading"
+                    : availableQuantity.toLocaleString()}
                 </strong>
               </div>
 
@@ -649,7 +827,7 @@ function TransfersPage({
               </div>
 
               <div>
-                <span>Remaining</span>
+                <span>Source remaining</span>
 
                 <strong
                   className={
@@ -666,7 +844,11 @@ function TransfersPage({
             <button
               type="submit"
               className="primary-button transfer-submit-button"
-              disabled={submitting}
+              disabled={
+                submitting ||
+                sourceBalanceLoading ||
+                !sourceBalance.balanceExists
+              }
             >
               {submitting ? (
                 <>
@@ -676,6 +858,15 @@ function TransfersPage({
                   />
 
                   Completing transfer
+                </>
+              ) : sourceBalanceLoading ? (
+                <>
+                  <LoaderCircle
+                    className="product-submit-spinner"
+                    size={19}
+                  />
+
+                  Loading source balance
                 </>
               ) : (
                 <>
@@ -691,6 +882,7 @@ function TransfersPage({
           <div className="page-card-heading">
             <div>
               <h2>Transfer controls</h2>
+
               <p>
                 Inventory movement requirements
               </p>
@@ -699,13 +891,20 @@ function TransfersPage({
 
           <ol className="receiving-control-list">
             <li>
-              Confirm the product and available
+              Confirm the product and product-wide
               quantity.
             </li>
 
             <li>
-              Confirm the stock is physically
-              present at the selected source.
+              Select the physical source location.
+            </li>
+
+            <li>
+              Wait for the source balance to load.
+            </li>
+
+            <li>
+              Confirm the source available quantity.
             </li>
 
             <li>
@@ -714,22 +913,16 @@ function TransfersPage({
             </li>
 
             <li>
-              Record the operational transfer
-              reason.
-            </li>
-
-            <li>
-              Complete the transfer after physical
-              relocation.
+              Record the transfer quantity and
+              operational reason.
             </li>
           </ol>
 
           <div className="receiving-notice">
-            Successful transfers are stored
-            permanently in Supabase. The source
-            balance is reduced, the destination
-            balance is increased, and a linked
-            inventory movement is created.
+            The source balance is loaded directly
+            from Supabase. The database rechecks and
+            locks the balance when the transfer is
+            submitted.
           </div>
         </article>
       </section>
@@ -806,9 +999,7 @@ function TransfersPage({
                     <span>To</span>
 
                     <strong>
-                      {
-                        transfer.destinationLocation
-                      }
+                      {transfer.destinationLocation}
                     </strong>
                   </div>
 
