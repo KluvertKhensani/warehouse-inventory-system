@@ -17,6 +17,7 @@ import DashboardPage from "./pages/DashboardPage";
 import InventoryPage from "./pages/InventoryPage";
 import LocationsPage from "./pages/LocationsPage";
 import MovementsPage from "./pages/MovementsPage";
+import PutawayPage from "./pages/PutawayPage";
 import ReceivingPage from "./pages/ReceivingPage";
 import StockCountsPage from "./pages/StockCountsPage";
 import TransfersPage from "./pages/TransfersPage";
@@ -25,6 +26,11 @@ import { fetchWarehouseLocations } from "./services/locationService";
 import { fetchMovements } from "./services/movementService";
 import { fetchProducts } from "./services/productService";
 import { createInventoryProduct } from "./services/productWriteService";
+import {
+  completePutawayTask,
+  createPutawayTask,
+  fetchPutawayTasks,
+} from "./services/putawayService";
 import {
   fetchReceipts,
   recordGoodsReceipt,
@@ -38,6 +44,15 @@ import {
   fetchTransfers,
 } from "./services/transferService";
 
+function getErrorMessage(
+  error,
+  fallbackMessage
+) {
+  return error instanceof Error
+    ? error.message
+    : fallbackMessage;
+}
+
 function App({
   authUser,
   authProfile,
@@ -45,363 +60,228 @@ function App({
   const [activePage, setActivePage] =
     useState("dashboard");
 
-  const [mobileMenuOpen, setMobileMenuOpen] =
-    useState(false);
+  const [
+    mobileMenuOpen,
+    setMobileMenuOpen,
+  ] = useState(false);
 
-  const [productModalOpen, setProductModalOpen] =
-    useState(false);
+  const [
+    productModalOpen,
+    setProductModalOpen,
+  ] = useState(false);
 
-  const [notification, setNotification] =
-    useState("");
+  const [
+    notification,
+    setNotification,
+  ] = useState("");
 
   const [products, setProducts] =
     useState(initialProducts);
 
-  const [productsLoading, setProductsLoading] =
-    useState(true);
+  const [
+    productsLoading,
+    setProductsLoading,
+  ] = useState(true);
 
-  const [productsError, setProductsError] =
-    useState("");
+  const [
+    productsError,
+    setProductsError,
+  ] = useState("");
 
   const [locations, setLocations] =
     useState(initialLocations);
 
-  const [locationsLoading, setLocationsLoading] =
-    useState(true);
+  const [
+    locationsLoading,
+    setLocationsLoading,
+  ] = useState(true);
 
-  const [locationsError, setLocationsError] =
-    useState("");
+  const [
+    locationsError,
+    setLocationsError,
+  ] = useState("");
 
   const [receipts, setReceipts] =
     useState(initialReceipts);
 
-  const [receiptsLoading, setReceiptsLoading] =
-    useState(true);
+  const [
+    receiptsLoading,
+    setReceiptsLoading,
+  ] = useState(true);
 
-  const [receiptsError, setReceiptsError] =
-    useState("");
+  const [
+    receiptsError,
+    setReceiptsError,
+  ] = useState("");
 
   const [movements, setMovements] =
     useState(initialMovements);
 
-  const [movementsLoading, setMovementsLoading] =
-    useState(true);
+  const [
+    movementsLoading,
+    setMovementsLoading,
+  ] = useState(true);
 
-  const [movementsError, setMovementsError] =
-    useState("");
+  const [
+    movementsError,
+    setMovementsError,
+  ] = useState("");
 
   const [transfers, setTransfers] =
     useState(initialTransfers);
 
-  const [transfersLoading, setTransfersLoading] =
-    useState(true);
+  const [
+    transfersLoading,
+    setTransfersLoading,
+  ] = useState(true);
 
-  const [transfersError, setTransfersError] =
-    useState("");
+  const [
+    transfersError,
+    setTransfersError,
+  ] = useState("");
 
-  const [stockCounts, setStockCounts] =
-    useState(initialStockCounts);
+  const [
+    putawayTasks,
+    setPutawayTasks,
+  ] = useState([]);
 
-  const [stockCountsLoading, setStockCountsLoading] =
-    useState(true);
+  const [
+    putawayTasksLoading,
+    setPutawayTasksLoading,
+  ] = useState(true);
 
-  const [stockCountsError, setStockCountsError] =
-    useState("");
+  const [
+    putawayTasksError,
+    setPutawayTasksError,
+  ] = useState("");
 
-  const [auditEvents, setAuditEvents] =
-    useState([]);
+  const [
+    stockCounts,
+    setStockCounts,
+  ] = useState(initialStockCounts);
 
-  const [auditEventsLoading, setAuditEventsLoading] =
-    useState(true);
+  const [
+    stockCountsLoading,
+    setStockCountsLoading,
+  ] = useState(true);
 
-  const [auditEventsError, setAuditEventsError] =
-    useState("");
+  const [
+    stockCountsError,
+    setStockCountsError,
+  ] = useState("");
 
-  const notificationTimerRef = useRef(null);
+  const [
+    auditEvents,
+    setAuditEvents,
+  ] = useState([]);
 
-  useEffect(() => {
-    let isMounted = true;
+  const [
+    auditEventsLoading,
+    setAuditEventsLoading,
+  ] = useState(true);
 
-    async function loadProducts() {
-      setProductsLoading(true);
-      setProductsError("");
+  const [
+    auditEventsError,
+    setAuditEventsError,
+  ] = useState("");
 
-      try {
-        const databaseProducts =
-          await fetchProducts();
-
-        if (!isMounted) {
-          return;
-        }
-
-        setProducts(databaseProducts);
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Unable to load products from Supabase.";
-
-        setProductsError(message);
-      } finally {
-        if (isMounted) {
-          setProductsLoading(false);
-        }
-      }
-    }
-
-    loadProducts();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const notificationTimerRef =
+    useRef(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadLocations() {
-      setLocationsLoading(true);
-      setLocationsError("");
+    async function loadData(
+      fetchData,
+      setData,
+      setLoading,
+      setError,
+      fallbackMessage
+    ) {
+      setLoading(true);
+      setError("");
 
       try {
-        const databaseLocations =
-          await fetchWarehouseLocations();
+        const data =
+          await fetchData();
 
-        if (!isMounted) {
-          return;
+        if (isMounted) {
+          setData(data);
         }
-
-        setLocations(databaseLocations);
       } catch (error) {
-        if (!isMounted) {
-          return;
+        if (isMounted) {
+          setError(
+            getErrorMessage(
+              error,
+              fallbackMessage
+            )
+          );
         }
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Unable to load warehouse locations from Supabase.";
-
-        setLocationsError(message);
       } finally {
         if (isMounted) {
-          setLocationsLoading(false);
+          setLoading(false);
         }
       }
     }
 
-    loadLocations();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadReceipts() {
-      setReceiptsLoading(true);
-      setReceiptsError("");
-
-      try {
-        const databaseReceipts =
-          await fetchReceipts();
-
-        if (!isMounted) {
-          return;
-        }
-
-        setReceipts(databaseReceipts);
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Unable to load goods receipts from Supabase.";
-
-        setReceiptsError(message);
-      } finally {
-        if (isMounted) {
-          setReceiptsLoading(false);
-        }
-      }
-    }
-
-    loadReceipts();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadMovements() {
-      setMovementsLoading(true);
-      setMovementsError("");
-
-      try {
-        const databaseMovements =
-          await fetchMovements();
-
-        if (!isMounted) {
-          return;
-        }
-
-        setMovements(databaseMovements);
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Unable to load inventory movements from Supabase.";
-
-        setMovementsError(message);
-      } finally {
-        if (isMounted) {
-          setMovementsLoading(false);
-        }
-      }
-    }
-
-    loadMovements();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadTransfers() {
-      setTransfersLoading(true);
-      setTransfersError("");
-
-      try {
-        const databaseTransfers =
-          await fetchTransfers();
-
-        if (!isMounted) {
-          return;
-        }
-
-        setTransfers(databaseTransfers);
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Unable to load stock transfers from Supabase.";
-
-        setTransfersError(message);
-      } finally {
-        if (isMounted) {
-          setTransfersLoading(false);
-        }
-      }
-    }
-
-    loadTransfers();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadStockCounts() {
-      setStockCountsLoading(true);
-      setStockCountsError("");
-
-      try {
-        const databaseStockCounts =
-          await fetchStockCounts();
-
-        if (!isMounted) {
-          return;
-        }
-
-        setStockCounts(databaseStockCounts);
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Unable to load stock counts from Supabase.";
-
-        setStockCountsError(message);
-      } finally {
-        if (isMounted) {
-          setStockCountsLoading(false);
-        }
-      }
-    }
-
-    loadStockCounts();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadAuditEvents() {
-      setAuditEventsLoading(true);
-      setAuditEventsError("");
-
-      try {
-        const databaseAuditEvents =
-          await fetchAuditEvents();
-
-        if (!isMounted) {
-          return;
-        }
-
-        setAuditEvents(
-          databaseAuditEvents
-        );
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Unable to load audit events from Supabase.";
-
-        setAuditEventsError(message);
-      } finally {
-        if (isMounted) {
-          setAuditEventsLoading(false);
-        }
-      }
-    }
-
-    loadAuditEvents();
+    void Promise.all([
+      loadData(
+        fetchProducts,
+        setProducts,
+        setProductsLoading,
+        setProductsError,
+        "Unable to load products from Supabase."
+      ),
+      loadData(
+        fetchWarehouseLocations,
+        setLocations,
+        setLocationsLoading,
+        setLocationsError,
+        "Unable to load warehouse locations from Supabase."
+      ),
+      loadData(
+        fetchReceipts,
+        setReceipts,
+        setReceiptsLoading,
+        setReceiptsError,
+        "Unable to load goods receipts from Supabase."
+      ),
+      loadData(
+        fetchMovements,
+        setMovements,
+        setMovementsLoading,
+        setMovementsError,
+        "Unable to load inventory movements from Supabase."
+      ),
+      loadData(
+        fetchTransfers,
+        setTransfers,
+        setTransfersLoading,
+        setTransfersError,
+        "Unable to load stock transfers from Supabase."
+      ),
+      loadData(
+        fetchPutawayTasks,
+        setPutawayTasks,
+        setPutawayTasksLoading,
+        setPutawayTasksError,
+        "Unable to load putaway tasks from Supabase."
+      ),
+      loadData(
+        fetchStockCounts,
+        setStockCounts,
+        setStockCountsLoading,
+        setStockCountsError,
+        "Unable to load stock counts from Supabase."
+      ),
+      loadData(
+        fetchAuditEvents,
+        setAuditEvents,
+        setAuditEventsLoading,
+        setAuditEventsError,
+        "Unable to load audit events from Supabase."
+      ),
+    ]);
 
     return () => {
       isMounted = false;
@@ -410,7 +290,9 @@ function App({
 
   useEffect(() => {
     return () => {
-      if (notificationTimerRef.current) {
+      if (
+        notificationTimerRef.current
+      ) {
         window.clearTimeout(
           notificationTimerRef.current
         );
@@ -468,11 +350,25 @@ function App({
     return databaseTransfers;
   }
 
+  async function refreshPutawayTasks() {
+    const databasePutawayTasks =
+      await fetchPutawayTasks();
+
+    setPutawayTasks(
+      databasePutawayTasks
+    );
+    setPutawayTasksError("");
+
+    return databasePutawayTasks;
+  }
+
   async function refreshStockCounts() {
     const databaseStockCounts =
       await fetchStockCounts();
 
-    setStockCounts(databaseStockCounts);
+    setStockCounts(
+      databaseStockCounts
+    );
     setStockCountsError("");
 
     return databaseStockCounts;
@@ -482,14 +378,18 @@ function App({
     const databaseAuditEvents =
       await fetchAuditEvents();
 
-    setAuditEvents(databaseAuditEvents);
+    setAuditEvents(
+      databaseAuditEvents
+    );
     setAuditEventsError("");
 
     return databaseAuditEvents;
   }
 
   function showNotification(message) {
-    if (notificationTimerRef.current) {
+    if (
+      notificationTimerRef.current
+    ) {
       window.clearTimeout(
         notificationTimerRef.current
       );
@@ -500,7 +400,8 @@ function App({
     notificationTimerRef.current =
       window.setTimeout(() => {
         setNotification("");
-        notificationTimerRef.current = null;
+        notificationTimerRef.current =
+          null;
       }, 2600);
   }
 
@@ -546,9 +447,10 @@ function App({
       };
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to create the product.";
+        getErrorMessage(
+          error,
+          "Unable to create the product."
+        );
 
       setProductsError(message);
 
@@ -582,6 +484,7 @@ function App({
         refreshLocations(),
         refreshReceipts(),
         refreshMovements(),
+        refreshPutawayTasks(),
         refreshAuditEvents(),
       ]);
 
@@ -598,9 +501,10 @@ function App({
       };
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to record the goods receipt.";
+        getErrorMessage(
+          error,
+          "Unable to record the goods receipt."
+        );
 
       setReceiptsError(message);
 
@@ -650,9 +554,10 @@ function App({
       };
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to complete the stock transfer.";
+        getErrorMessage(
+          error,
+          "Unable to complete the stock transfer."
+        );
 
       setTransfersError(message);
 
@@ -666,6 +571,121 @@ function App({
       };
     } finally {
       setTransfersLoading(false);
+    }
+  }
+
+  async function handleCreatePutawayTask(
+    taskData
+  ) {
+    try {
+      setPutawayTasksLoading(true);
+      setPutawayTasksError("");
+
+      const result =
+        await createPutawayTask(
+          taskData
+        );
+
+      await Promise.all([
+        refreshReceipts(),
+        refreshPutawayTasks(),
+        refreshAuditEvents(),
+      ]);
+
+      showNotification(
+        `${result.taskNumber} was created for ${result.quantity} units.`
+      );
+
+      return {
+        success: true,
+        message:
+          "The putaway task was created successfully.",
+        taskNumber:
+          result.taskNumber,
+        quantity:
+          result.quantity,
+        status:
+          result.status,
+      };
+    } catch (error) {
+      const message =
+        getErrorMessage(
+          error,
+          "Unable to create the putaway task."
+        );
+
+      setPutawayTasksError(message);
+
+      showNotification(
+        `Putaway task creation failed: ${message}`
+      );
+
+      return {
+        success: false,
+        message,
+      };
+    } finally {
+      setPutawayTasksLoading(false);
+    }
+  }
+
+  async function handleCompletePutawayTask(
+    completionData
+  ) {
+    try {
+      setPutawayTasksLoading(true);
+      setPutawayTasksError("");
+
+      const result =
+        await completePutawayTask(
+          completionData
+        );
+
+      await Promise.all([
+        refreshProducts(),
+        refreshLocations(),
+        refreshReceipts(),
+        refreshPutawayTasks(),
+        refreshMovements(),
+        refreshAuditEvents(),
+      ]);
+
+      showNotification(
+        `${result.taskNumber} moved ${result.quantityMoved} units to ${result.destinationLocation}.`
+      );
+
+      return {
+        success: true,
+        message:
+          "The putaway task was completed successfully.",
+        taskNumber:
+          result.taskNumber,
+        movementNumber:
+          result.movementNumber,
+        quantityMoved:
+          result.quantityMoved,
+        status:
+          result.status,
+      };
+    } catch (error) {
+      const message =
+        getErrorMessage(
+          error,
+          "Unable to complete the putaway task."
+        );
+
+      setPutawayTasksError(message);
+
+      showNotification(
+        `Putaway completion failed: ${message}`
+      );
+
+      return {
+        success: false,
+        message,
+      };
+    } finally {
+      setPutawayTasksLoading(false);
     }
   }
 
@@ -704,9 +724,10 @@ function App({
       };
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to record the stock count.";
+        getErrorMessage(
+          error,
+          "Unable to record the stock count."
+        );
 
       setStockCountsError(message);
 
@@ -734,12 +755,15 @@ function App({
           </span>
         </div>
 
-        <h2>{activePage} page</h2>
+        <h2>
+          {activePage} page
+        </h2>
 
         <p>
-          This page has been connected to the
-          navigation and will be implemented in
-          the next development checkpoint.
+          This page has been connected to
+          the navigation and will be
+          implemented in the next
+          development checkpoint.
         </p>
 
         <button
@@ -762,7 +786,9 @@ function App({
           <DashboardPage
             products={products}
             onNavigate={handleNavigate}
-            onOpenScanner={handleOpenScanner}
+            onOpenScanner={
+              handleOpenScanner
+            }
           />
         );
 
@@ -783,6 +809,23 @@ function App({
             receipts={receipts}
             onRecordReceipt={
               handleRecordReceipt
+            }
+          />
+        );
+
+      case "putaway":
+        return (
+          <PutawayPage
+            receipts={receipts}
+            locations={locations}
+            putawayTasks={
+              putawayTasks
+            }
+            onCreatePutawayTask={
+              handleCreatePutawayTask
+            }
+            onCompletePutawayTask={
+              handleCompletePutawayTask
             }
           />
         );
@@ -851,7 +894,9 @@ function App({
       <Sidebar
         activePage={activePage}
         onNavigate={handleNavigate}
-        mobileMenuOpen={mobileMenuOpen}
+        mobileMenuOpen={
+          mobileMenuOpen
+        }
         onCloseMobileMenu={() =>
           setMobileMenuOpen(false)
         }
@@ -865,7 +910,9 @@ function App({
           onOpenMobileMenu={() =>
             setMobileMenuOpen(true)
           }
-          onOpenScanner={handleOpenScanner}
+          onOpenScanner={
+            handleOpenScanner
+          }
           onCreateProduct={() =>
             setProductModalOpen(true)
           }
@@ -877,8 +924,8 @@ function App({
               className="database-loading-notice"
               role="status"
             >
-              Loading warehouse products from
-              Supabase...
+              Loading warehouse products
+              from Supabase...
             </div>
           )}
 
@@ -887,8 +934,9 @@ function App({
               className="database-error-notice"
               role="alert"
             >
-              Supabase product operation failed.
-              Error: {productsError}
+              Supabase product operation
+              failed. Error:{" "}
+              {productsError}
             </div>
           )}
 
@@ -898,8 +946,8 @@ function App({
                 className="database-loading-notice"
                 role="status"
               >
-                Loading warehouse locations from
-                Supabase...
+                Loading warehouse locations
+                from Supabase...
               </div>
             )}
 
@@ -909,8 +957,9 @@ function App({
                 className="database-error-notice"
                 role="alert"
               >
-                Supabase location loading failed.
-                Error: {locationsError}
+                Supabase location loading
+                failed. Error:{" "}
+                {locationsError}
               </div>
             )}
 
@@ -931,8 +980,32 @@ function App({
                 className="database-error-notice"
                 role="alert"
               >
-                Supabase receipt operation failed.
-                Error: {receiptsError}
+                Supabase receipt operation
+                failed. Error:{" "}
+                {receiptsError}
+              </div>
+            )}
+
+          {putawayTasksLoading &&
+            activePage === "putaway" && (
+              <div
+                className="database-loading-notice"
+                role="status"
+              >
+                Loading putaway tasks from
+                Supabase...
+              </div>
+            )}
+
+          {putawayTasksError &&
+            activePage === "putaway" && (
+              <div
+                className="database-error-notice"
+                role="alert"
+              >
+                Supabase putaway operation
+                failed. Error:{" "}
+                {putawayTasksError}
               </div>
             )}
 
@@ -942,8 +1015,8 @@ function App({
                 className="database-loading-notice"
                 role="status"
               >
-                Loading inventory movements from
-                Supabase...
+                Loading inventory movements
+                from Supabase...
               </div>
             )}
 
@@ -953,8 +1026,9 @@ function App({
                 className="database-error-notice"
                 role="alert"
               >
-                Supabase movement loading failed.
-                Error: {movementsError}
+                Supabase movement loading
+                failed. Error:{" "}
+                {movementsError}
               </div>
             )}
 
@@ -964,8 +1038,8 @@ function App({
                 className="database-loading-notice"
                 role="status"
               >
-                Loading stock transfers from
-                Supabase...
+                Loading stock transfers
+                from Supabase...
               </div>
             )}
 
@@ -975,8 +1049,9 @@ function App({
                 className="database-error-notice"
                 role="alert"
               >
-                Supabase transfer operation failed.
-                Error: {transfersError}
+                Supabase transfer operation
+                failed. Error:{" "}
+                {transfersError}
               </div>
             )}
 
@@ -997,8 +1072,8 @@ function App({
                 className="database-error-notice"
                 role="alert"
               >
-                Supabase stock count operation
-                failed. Error:{" "}
+                Supabase stock count
+                operation failed. Error:{" "}
                 {stockCountsError}
               </div>
             )}
@@ -1020,8 +1095,9 @@ function App({
                 className="database-error-notice"
                 role="alert"
               >
-                Supabase audit loading failed.
-                Error: {auditEventsError}
+                Supabase audit loading
+                failed. Error:{" "}
+                {auditEventsError}
               </div>
             )}
 

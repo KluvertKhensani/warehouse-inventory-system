@@ -3510,3 +3510,578 @@ textarea:focus-visible {
   }
 }
 
+/* Putaway page */
+
+.putaway-page {
+  display: grid;
+  gap: 24px;
+}
+
+.putaway-summary-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.putaway-summary-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow:
+    0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.putaway-summary-card > div:first-child {
+  min-width: 0;
+}
+
+.putaway-summary-card p {
+  margin: 0 0 10px;
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.putaway-summary-card strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #0f172a;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.putaway-summary-card span {
+  display: block;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.putaway-summary-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+
+.putaway-blue {
+  color: #2563eb;
+  background: #dbeafe;
+}
+
+.putaway-amber {
+  color: #d97706;
+  background: #fef3c7;
+}
+
+.putaway-purple {
+  color: #7c3aed;
+  background: #ede9fe;
+}
+
+.putaway-green {
+  color: #059669;
+  background: #d1fae5;
+}
+
+.putaway-workspace {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.6fr)
+    minmax(280px, 0.8fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.putaway-form-card,
+.putaway-guidance-card,
+.putaway-register-card {
+  min-width: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow:
+    0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.putaway-form-card,
+.putaway-guidance-card {
+  padding: 22px;
+}
+
+.putaway-form {
+  margin-top: 20px;
+}
+
+.putaway-form textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+}
+
+.putaway-submit-button {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.putaway-guidance-card {
+  position: sticky;
+  top: 20px;
+}
+
+.putaway-register-card {
+  overflow: hidden;
+}
+
+.putaway-register-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 22px 16px;
+}
+
+.putaway-register-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.05rem;
+}
+
+.putaway-register-header p {
+  margin: 7px 0 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.putaway-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: min(100%, 310px);
+  padding: 0 12px;
+  border: 1px solid #dbe2ea;
+  border-radius: 12px;
+  color: #64748b;
+  background: #ffffff;
+}
+
+.putaway-search:focus-within {
+  border-color: #2563eb;
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.putaway-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 0;
+  border: 0;
+  outline: 0;
+  color: #0f172a;
+  background: transparent;
+  font: inherit;
+}
+
+.putaway-search input::placeholder {
+  color: #94a3b8;
+}
+
+.putaway-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 22px 16px;
+}
+
+.putaway-filter-button {
+  padding: 8px 12px;
+  border: 1px solid #dbe2ea;
+  border-radius: 999px;
+  color: #475569;
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.putaway-filter-button:hover {
+  border-color: #94a3b8;
+  color: #0f172a;
+  transform: translateY(-1px);
+}
+
+.putaway-filter-button-active {
+  border-color: #2563eb;
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.putaway-filter-button-active:hover {
+  border-color: #1d4ed8;
+  color: #ffffff;
+  background: #1d4ed8;
+}
+
+.putaway-results-summary {
+  padding: 12px 22px;
+  border-top: 1px solid #eef2f7;
+  border-bottom: 1px solid #eef2f7;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.putaway-task-list {
+  display: grid;
+  gap: 14px;
+  padding: 18px 22px 22px;
+}
+
+.putaway-task-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.putaway-task-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.putaway-task-product {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.putaway-task-product > div {
+  min-width: 0;
+}
+
+.putaway-task-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.putaway-task-product h3 {
+  margin: 0;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 0.95rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.putaway-task-product p {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  color: #64748b;
+  font-size: 0.76rem;
+}
+
+.putaway-task-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.putaway-priority,
+.putaway-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 27px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.putaway-priority-low {
+  color: #0369a1;
+  background: #e0f2fe;
+}
+
+.putaway-priority-normal {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.putaway-priority-high {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.putaway-priority-urgent {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.putaway-status-pending {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.putaway-status-assigned {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.putaway-status-progress {
+  color: #6d28d9;
+  background: #ede9fe;
+}
+
+.putaway-status-completed {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.putaway-status-cancelled {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.putaway-status-default {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.putaway-task-details {
+  display: grid;
+  grid-template-columns:
+    repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 17px;
+}
+
+.putaway-task-details > div {
+  min-width: 0;
+  padding: 11px;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.putaway-task-details span,
+.putaway-task-notes span {
+  display: block;
+  margin-bottom: 6px;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.putaway-task-details strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 0.78rem;
+}
+
+.putaway-task-details small {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.7rem;
+}
+
+.putaway-task-notes {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-left: 3px solid #2563eb;
+  border-radius: 0 12px 12px 0;
+  background: #eff6ff;
+}
+
+.putaway-task-notes p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #334155;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.putaway-completion-panel {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.putaway-completion-panel .form-grid {
+  margin-top: 0;
+}
+
+.putaway-complete-button {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.putaway-completed-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 15px;
+  padding: 11px 13px;
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  color: #047857;
+  background: #ecfdf5;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.putaway-completed-note svg {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1180px) {
+  .putaway-summary-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .putaway-task-details {
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .putaway-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .putaway-guidance-card {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .putaway-page {
+    gap: 18px;
+  }
+
+  .putaway-summary-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .putaway-summary-card {
+    padding: 17px;
+  }
+
+  .putaway-form-card,
+  .putaway-guidance-card {
+    padding: 17px;
+    border-radius: 16px;
+  }
+
+  .putaway-register-card {
+    border-radius: 16px;
+  }
+
+  .putaway-register-header {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 18px 17px 14px;
+  }
+
+  .putaway-search {
+    width: 100%;
+  }
+
+  .putaway-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 0 17px 14px;
+    scrollbar-width: thin;
+  }
+
+  .putaway-filter-button {
+    flex: 0 0 auto;
+  }
+
+  .putaway-results-summary {
+    padding: 11px 17px;
+  }
+
+  .putaway-task-list {
+    padding: 14px 17px 18px;
+  }
+
+  .putaway-task-card {
+    padding: 15px;
+  }
+
+  .putaway-task-heading {
+    flex-direction: column;
+  }
+
+  .putaway-task-badges {
+    justify-content: flex-start;
+  }
+
+  .putaway-task-details {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .putaway-completion-panel {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 470px) {
+  .putaway-task-details {
+    grid-template-columns: 1fr;
+  }
+
+  .putaway-summary-card strong {
+    font-size: 1.55rem;
+  }
+
+  .putaway-task-product h3 {
+    white-space: normal;
+  }
+
+  .putaway-form-card,
+  .putaway-guidance-card,
+  .putaway-task-card {
+    border-radius: 14px;
+  }
+}

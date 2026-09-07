@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   LayoutDashboard,
   MapPin,
+  PackageCheck,
   Repeat2,
   ShieldCheck,
   Truck,
@@ -24,6 +25,11 @@ export const navigationItems = [
     id: "receiving",
     label: "Receiving",
     icon: Truck,
+  },
+  {
+    id: "putaway",
+    label: "Putaway",
+    icon: PackageCheck,
   },
   {
     id: "movements",
