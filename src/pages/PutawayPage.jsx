@@ -6,8 +6,11 @@ import {
   LoaderCircle,
   MapPin,
   PackageCheck,
+  Play,
   Search,
   Truck,
+  UserRoundCheck,
+  XCircle,
 } from "lucide-react";
 
 const emptyTaskForm = {
@@ -22,201 +25,123 @@ const emptyCompletionForm = {
   notes: "",
 };
 
-const priorityOptions = [
-  "Low",
-  "Normal",
-  "High",
-  "Urgent",
+const emptyLifecycleForm = {
+  assigneeProfileId: "",
+  cancellationReason: "",
+};
+
+const priorities = ["Low", "Normal", "High", "Urgent"];
+const filters = [
+  ["all", "All tasks"],
+  ["Pending", "Pending"],
+  ["Assigned", "Assigned"],
+  ["In progress", "In progress"],
+  ["Completed", "Completed"],
+  ["Cancelled", "Cancelled"],
+];
+const managementRoles = [
+  "Administrator",
+  "Warehouse Manager",
+  "Inventory Controller",
 ];
 
-const statusFilters = [
-  {
-    id: "all",
-    label: "All tasks",
-  },
-  {
-    id: "Pending",
-    label: "Pending",
-  },
-  {
-    id: "Assigned",
-    label: "Assigned",
-  },
-  {
-    id: "In progress",
-    label: "In progress",
-  },
-  {
-    id: "Completed",
-    label: "Completed",
-  },
-  {
-    id: "Cancelled",
-    label: "Cancelled",
-  },
-];
-
-function getStatusClass(status) {
-  switch (status) {
-    case "Completed":
-      return "putaway-status-completed";
-
-    case "Pending":
-      return "putaway-status-pending";
-
-    case "Assigned":
-      return "putaway-status-assigned";
-
-    case "In progress":
-      return "putaway-status-progress";
-
-    case "Cancelled":
-      return "putaway-status-cancelled";
-
-    default:
-      return "putaway-status-default";
-  }
+function statusClass(status) {
+  return {
+    Completed: "putaway-status-completed",
+    Pending: "putaway-status-pending",
+    Assigned: "putaway-status-assigned",
+    "In progress": "putaway-status-progress",
+    Cancelled: "putaway-status-cancelled",
+  }[status] || "putaway-status-default";
 }
 
-function getPriorityClass(priority) {
-  switch (priority) {
-    case "Urgent":
-      return "putaway-priority-urgent";
-
-    case "High":
-      return "putaway-priority-high";
-
-    case "Low":
-      return "putaway-priority-low";
-
-    default:
-      return "putaway-priority-normal";
-  }
+function priorityClass(priority) {
+  return {
+    Urgent: "putaway-priority-urgent",
+    High: "putaway-priority-high",
+    Low: "putaway-priority-low",
+  }[priority] || "putaway-priority-normal";
 }
 
-function getReceiptNumber(receipt) {
-  return (
-    receipt.receiptNumber ||
-    receipt.id ||
-    ""
-  );
+function receiptNumber(receipt) {
+  return receipt.receiptNumber || receipt.id || "";
 }
 
-function getTaskNumber(task) {
-  return (
-    task.taskNumber ||
-    task.id ||
-    ""
-  );
+function taskNumber(task) {
+  return task.taskNumber || task.id || "";
 }
 
 function PutawayPage({
+  authUser,
+  authProfile,
   receipts = [],
   locations = [],
   putawayTasks = [],
+  putawayOperators = [],
+  putawayOperatorsLoading = false,
   onCreatePutawayTask,
+  onAssignPutawayTask,
+  onStartPutawayTask,
+  onCancelPutawayTask,
   onCompletePutawayTask,
 }) {
-  const [taskForm, setTaskForm] =
-    useState(emptyTaskForm);
+  const [taskForm, setTaskForm] = useState(emptyTaskForm);
+  const [completionForms, setCompletionForms] = useState({});
+  const [lifecycleForms, setLifecycleForms] = useState({});
+  const [taskErrors, setTaskErrors] = useState({});
+  const [completionErrors, setCompletionErrors] = useState({});
+  const [lifecycleErrors, setLifecycleErrors] = useState({});
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [creating, setCreating] = useState(false);
+  const [busyAction, setBusyAction] = useState("");
 
-  const [
-    completionForms,
-    setCompletionForms,
-  ] = useState({});
+  const currentUserId = authUser?.id || authProfile?.id || "";
+  const currentUserRole = authProfile?.role?.name || "";
+  const canManage = managementRoles.includes(currentUserRole);
 
-  const [taskErrors, setTaskErrors] =
-    useState({});
+  const eligibleReceipts = useMemo(
+    () =>
+      receipts.filter(
+        (receipt) =>
+          receipt.status !== "Completed" && receipt.status !== "Cancelled"
+      ),
+    [receipts]
+  );
 
-  const [
-    completionErrors,
-    setCompletionErrors,
-  ] = useState({});
+  const selectedReceipt = useMemo(
+    () =>
+      eligibleReceipts.find(
+        (receipt) => receiptNumber(receipt) === taskForm.receiptNumber
+      ),
+    [eligibleReceipts, taskForm.receiptNumber]
+  );
 
-  const [searchQuery, setSearchQuery] =
-    useState("");
-
-  const [activeFilter, setActiveFilter] =
-    useState("all");
-
-  const [creatingTask, setCreatingTask] =
-    useState(false);
-
-  const [
-    completingTaskNumber,
-    setCompletingTaskNumber,
-  ] = useState("");
-
-  const eligibleReceipts = useMemo(() => {
-    return receipts.filter((receipt) => {
-      return (
-        receipt.status !== "Completed" &&
-        receipt.status !== "Cancelled"
-      );
-    });
-  }, [receipts]);
-
-  const selectedReceipt = useMemo(() => {
-    return eligibleReceipts.find(
-      (receipt) =>
-        getReceiptNumber(receipt) ===
-        taskForm.receiptNumber
-    );
-  }, [
-    eligibleReceipts,
-    taskForm.receiptNumber,
-  ]);
-
-  const selectedReceiptNumber =
-    selectedReceipt
-      ? getReceiptNumber(selectedReceipt)
-      : "";
-
+  const selectedReceiptNumber = selectedReceipt
+    ? receiptNumber(selectedReceipt)
+    : "";
   const selectedProductSku =
-    selectedReceipt?.productSku ||
-    taskForm.productSku ||
-    "";
+    selectedReceipt?.productSku || taskForm.productSku || "";
 
-  const destinationLocations = useMemo(() => {
-    return locations.filter((location) => {
-      const locationCode = String(
-        location.code || ""
-      ).toUpperCase();
-
-      const isActive =
-        location.isActive !== false &&
-        location.status !== "Inactive";
-
-      const isRestricted =
-        location.isRestricted === true ||
-        location.status === "Restricted";
-
-      const isReceivingArea =
-        locationCode.startsWith(
-          "JHB-RECEIVING-"
-        );
-
-      return (
-        isActive &&
-        !isRestricted &&
-        !isReceivingArea
-      );
-    });
-  }, [locations]);
+  const destinationLocations = useMemo(
+    () =>
+      locations.filter((location) => {
+        const code = String(location.code || "").toUpperCase();
+        const active =
+          location.isActive !== false && location.status !== "Inactive";
+        const restricted =
+          location.isRestricted === true || location.status === "Restricted";
+        return active && !restricted && !code.startsWith("JHB-RECEIVING-");
+      }),
+    [locations]
+  );
 
   const filteredTasks = useMemo(() => {
-    const normalizedSearch = searchQuery
-      .trim()
-      .toLowerCase();
-
+    const query = search.trim().toLowerCase();
     return putawayTasks.filter((task) => {
-      const matchesFilter =
-        activeFilter === "all" ||
-        task.status === activeFilter;
-
-      const searchableValues = [
-        task.id,
-        task.taskNumber,
+      const matchesFilter = filter === "all" || task.status === filter;
+      const values = [
+        taskNumber(task),
         task.receiptNumber,
         task.purchaseOrder,
         task.supplier,
@@ -230,685 +155,429 @@ function PutawayPage({
         task.assignedToName,
         task.completedByName,
       ];
-
       const matchesSearch =
-        !normalizedSearch ||
-        searchableValues.some((value) => {
-          return String(value || "")
-            .toLowerCase()
-            .includes(normalizedSearch);
-        });
-
-      return (
-        matchesFilter &&
-        matchesSearch
-      );
-    });
-  }, [
-    activeFilter,
-    putawayTasks,
-    searchQuery,
-  ]);
-
-  const pendingTasks =
-    putawayTasks.filter((task) => {
-      return (
-        task.status === "Pending" ||
-        task.status === "Assigned" ||
-        task.status === "In progress"
-      );
-    }).length;
-
-  const completedTasks =
-    putawayTasks.filter(
-      (task) =>
-        task.status === "Completed"
-    ).length;
-
-  const pendingUnits =
-    putawayTasks.reduce(
-      (total, task) => {
-        if (
-          task.status === "Completed" ||
-          task.status === "Cancelled"
-        ) {
-          return total;
-        }
-
-        return (
-          total +
-          Number(task.quantity || 0)
+        !query ||
+        values.some((value) =>
+          String(value || "").toLowerCase().includes(query)
         );
-      },
-      0
-    );
-
-  function handleTaskFormChange(event) {
-    const { name, value } = event.target;
-
-    if (name === "receiptNumber") {
-      const receipt =
-        eligibleReceipts.find(
-          (item) =>
-            getReceiptNumber(item) === value
-        );
-
-      setTaskForm((current) => ({
-        ...current,
-        receiptNumber: value,
-        productSku:
-          receipt?.productSku || "",
-      }));
-    } else {
-      setTaskForm((current) => {
-        const nextForm = {
-          ...current,
-        };
-
-        nextForm[name] = value;
-
-        return nextForm;
-      });
-    }
-
-    setTaskErrors((current) => {
-      const nextErrors = {
-        ...current,
-        form: "",
-      };
-
-      nextErrors[name] = "";
-
-      return nextErrors;
+      return matchesFilter && matchesSearch;
     });
-  }
+  }, [filter, putawayTasks, search]);
 
-  function validateTaskForm() {
-    const nextErrors = {};
+  const openTasks = putawayTasks.filter((task) =>
+    ["Pending", "Assigned", "In progress"].includes(task.status)
+  ).length;
+  const completedTasks = putawayTasks.filter(
+    (task) => task.status === "Completed"
+  ).length;
+  const openUnits = putawayTasks.reduce(
+    (total, task) =>
+      task.status === "Completed" || task.status === "Cancelled"
+        ? total
+        : total + Number(task.quantity || 0),
+    0
+  );
 
-    if (!selectedReceiptNumber) {
-      nextErrors.receiptNumber =
-        "Select a goods receipt.";
-    }
-
-    if (!selectedProductSku) {
-      nextErrors.productSku =
-        "The selected receipt has no product.";
-    }
-
-    if (!taskForm.priority) {
-      nextErrors.priority =
-        "Select a putaway priority.";
-    }
-
-    return nextErrors;
-  }
-
-  async function handleCreateTask(event) {
-    event.preventDefault();
-
-    if (creatingTask) {
-      return;
-    }
-
-    const validationErrors =
-      validateTaskForm();
-
-    if (
-      Object.keys(
-        validationErrors
-      ).length > 0
-    ) {
-      setTaskErrors(validationErrors);
-      return;
-    }
-
-    if (
-      typeof onCreatePutawayTask !==
-      "function"
-    ) {
-      setTaskErrors({
-        form:
-          "The putaway task service is unavailable. Reload the application.",
-      });
-
-      return;
-    }
-
-    setCreatingTask(true);
-    setTaskErrors({});
-
-    try {
-      const result =
-        await onCreatePutawayTask({
-          receiptNumber:
-            selectedReceiptNumber,
-          productSku:
-            selectedProductSku,
-          priority:
-            taskForm.priority,
-          notes:
-            taskForm.notes.trim(),
-        });
-
-      if (!result || !result.success) {
-        setTaskErrors({
-          form:
-            result?.message ||
-            "Unable to create the putaway task.",
-        });
-
-        return;
-      }
-
-      setTaskForm(emptyTaskForm);
-      setTaskErrors({});
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to create the putaway task.";
-
-      setTaskErrors({
-        form: message,
-      });
-    } finally {
-      setCreatingTask(false);
-    }
-  }
-
-  function getCompletionForm(
-    taskNumber
-  ) {
+  function lifecycleForm(number, assignedTo = "") {
     return {
-      ...emptyCompletionForm,
-      ...completionForms[taskNumber],
+      ...emptyLifecycleForm,
+      assigneeProfileId: assignedTo,
+      ...lifecycleForms[number],
     };
   }
 
-  function handleCompletionChange(
-    taskNumber,
-    event
-  ) {
+  function completionForm(number) {
+    return {
+      ...emptyCompletionForm,
+      ...completionForms[number],
+    };
+  }
+
+  function setLifecycleError(number, changes) {
+    setLifecycleErrors((current) => ({
+      ...current,
+      [number]: { ...current[number], ...changes },
+    }));
+  }
+
+  function setCompletionError(number, changes) {
+    setCompletionErrors((current) => ({
+      ...current,
+      [number]: { ...current[number], ...changes },
+    }));
+  }
+
+  function changeTaskForm(event) {
     const { name, value } = event.target;
-
-    setCompletionForms((current) => {
-      const currentTaskForm = {
-        ...emptyCompletionForm,
-        ...current[taskNumber],
-      };
-
-      currentTaskForm[name] = value;
-
-      const nextForms = {
-        ...current,
-      };
-
-      nextForms[taskNumber] =
-        currentTaskForm;
-
-      return nextForms;
-    });
-
-    setCompletionErrors((current) => {
-      const currentTaskErrors = {
-        ...current[taskNumber],
-        form: "",
-      };
-
-      currentTaskErrors[name] = "";
-
-      const nextErrors = {
-        ...current,
-      };
-
-      nextErrors[taskNumber] =
-        currentTaskErrors;
-
-      return nextErrors;
-    });
-  }
-
-  function validateCompletionForm(
-    taskNumber
-  ) {
-    const form =
-      getCompletionForm(taskNumber);
-
-    const nextErrors = {};
-
-    if (!form.destinationLocation) {
-      nextErrors.destinationLocation =
-        "Select a destination location.";
-    }
-
-    return nextErrors;
-  }
-
-  async function handleCompleteTask(
-    taskNumber
-  ) {
-    if (completingTaskNumber) {
-      return;
-    }
-
-    const validationErrors =
-      validateCompletionForm(
-        taskNumber
+    if (name === "receiptNumber") {
+      const receipt = eligibleReceipts.find(
+        (item) => receiptNumber(item) === value
       );
-
-    if (
-      Object.keys(
-        validationErrors
-      ).length > 0
-    ) {
-      setCompletionErrors((current) => {
-        const nextErrors = {
-          ...current,
-        };
-
-        nextErrors[taskNumber] = {
-          ...current[taskNumber],
-          ...validationErrors,
-        };
-
-        return nextErrors;
-      });
-
-      return;
-    }
-
-    if (
-      typeof onCompletePutawayTask !==
-      "function"
-    ) {
-      setCompletionErrors((current) => {
-        const nextErrors = {
-          ...current,
-        };
-
-        nextErrors[taskNumber] = {
-          ...current[taskNumber],
-          form:
-            "The putaway completion service is unavailable. Reload the application.",
-        };
-
-        return nextErrors;
-      });
-
-      return;
-    }
-
-    const form =
-      getCompletionForm(taskNumber);
-
-    setCompletingTaskNumber(
-      taskNumber
-    );
-
-    setCompletionErrors((current) => {
-      const nextErrors = {
+      setTaskForm((current) => ({
         ...current,
-      };
+        receiptNumber: value,
+        productSku: receipt?.productSku || "",
+      }));
+    } else {
+      setTaskForm((current) => ({ ...current, [name]: value }));
+    }
+    setTaskErrors((current) => ({ ...current, [name]: "", form: "" }));
+  }
 
-      nextErrors[taskNumber] = {};
+  function changeLifecycleForm(number, event) {
+    const { name, value } = event.target;
+    setLifecycleForms((current) => ({
+      ...current,
+      [number]: {
+        ...emptyLifecycleForm,
+        ...current[number],
+        [name]: value,
+      },
+    }));
+    setLifecycleError(number, { [name]: "", form: "" });
+  }
 
-      return nextErrors;
-    });
+  function changeCompletionForm(number, event) {
+    const { name, value } = event.target;
+    setCompletionForms((current) => ({
+      ...current,
+      [number]: {
+        ...emptyCompletionForm,
+        ...current[number],
+        [name]: value,
+      },
+    }));
+    setCompletionError(number, { [name]: "", form: "" });
+  }
 
+  async function createTask(event) {
+    event.preventDefault();
+    if (creating) return;
+
+    const errors = {};
+    if (!selectedReceiptNumber) errors.receiptNumber = "Select a goods receipt.";
+    if (!selectedProductSku) errors.productSku = "The receipt has no product.";
+    if (!taskForm.priority) errors.priority = "Select a priority.";
+    if (Object.keys(errors).length) {
+      setTaskErrors(errors);
+      return;
+    }
+    if (typeof onCreatePutawayTask !== "function") {
+      setTaskErrors({ form: "The putaway task service is unavailable." });
+      return;
+    }
+
+    setCreating(true);
+    setTaskErrors({});
     try {
-      const result =
-        await onCompletePutawayTask({
-          taskNumber,
-          destinationLocation:
-            form.destinationLocation,
-          notes:
-            form.notes.trim(),
+      const result = await onCreatePutawayTask({
+        receiptNumber: selectedReceiptNumber,
+        productSku: selectedProductSku,
+        priority: taskForm.priority,
+        notes: taskForm.notes.trim(),
+      });
+      if (!result?.success) {
+        setTaskErrors({
+          form: result?.message || "Unable to create the putaway task.",
         });
-
-      if (!result || !result.success) {
-        setCompletionErrors(
-          (current) => {
-            const nextErrors = {
-              ...current,
-            };
-
-            nextErrors[taskNumber] = {
-              form:
-                result?.message ||
-                "Unable to complete the putaway task.",
-            };
-
-            return nextErrors;
-          }
-        );
-
         return;
       }
-
-      setCompletionForms((current) => {
-        const nextForms = {
-          ...current,
-        };
-
-        delete nextForms[taskNumber];
-
-        return nextForms;
-      });
-
-      setCompletionErrors((current) => {
-        const nextErrors = {
-          ...current,
-        };
-
-        delete nextErrors[taskNumber];
-
-        return nextErrors;
-      });
+      setTaskForm(emptyTaskForm);
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to complete the putaway task.";
-
-      setCompletionErrors((current) => {
-        const nextErrors = {
-          ...current,
-        };
-
-        nextErrors[taskNumber] = {
-          form: message,
-        };
-
-        return nextErrors;
+      setTaskErrors({
+        form:
+          error instanceof Error
+            ? error.message
+            : "Unable to create the putaway task.",
       });
     } finally {
-      setCompletingTaskNumber("");
+      setCreating(false);
     }
   }
 
-  function clearFilters() {
-    setSearchQuery("");
-    setActiveFilter("all");
+  async function assignTask(task) {
+    const number = taskNumber(task);
+    const form = lifecycleForm(number, task.assignedTo || "");
+    if (!form.assigneeProfileId) {
+      setLifecycleError(number, {
+        assigneeProfileId: "Select a warehouse operator.",
+      });
+      return;
+    }
+    if (
+      task.status === "Assigned" &&
+      form.assigneeProfileId === task.assignedTo
+    ) {
+      setLifecycleError(number, {
+        assigneeProfileId: "Select a different operator for reassignment.",
+      });
+      return;
+    }
+    if (typeof onAssignPutawayTask !== "function") {
+      setLifecycleError(number, { form: "Assignment service unavailable." });
+      return;
+    }
+
+    setBusyAction(`assign:${number}`);
+    setLifecycleErrors((current) => ({ ...current, [number]: {} }));
+    try {
+      const result = await onAssignPutawayTask({
+        taskNumber: number,
+        assigneeProfileId: form.assigneeProfileId,
+      });
+      if (!result?.success) {
+        setLifecycleError(number, {
+          form: result?.message || "Unable to assign the task.",
+        });
+      }
+    } catch (error) {
+      setLifecycleError(number, {
+        form: error instanceof Error ? error.message : "Unable to assign task.",
+      });
+    } finally {
+      setBusyAction("");
+    }
+  }
+
+  async function startTask(task) {
+    const number = taskNumber(task);
+    if (typeof onStartPutawayTask !== "function") {
+      setLifecycleError(number, { form: "Task start service unavailable." });
+      return;
+    }
+
+    setBusyAction(`start:${number}`);
+    setLifecycleErrors((current) => ({ ...current, [number]: {} }));
+    try {
+      const result = await onStartPutawayTask({ taskNumber: number });
+      if (!result?.success) {
+        setLifecycleError(number, {
+          form: result?.message || "Unable to start the task.",
+        });
+      }
+    } catch (error) {
+      setLifecycleError(number, {
+        form: error instanceof Error ? error.message : "Unable to start task.",
+      });
+    } finally {
+      setBusyAction("");
+    }
+  }
+
+  async function cancelTask(task) {
+    const number = taskNumber(task);
+    const reason = lifecycleForm(
+      number,
+      task.assignedTo || ""
+    ).cancellationReason.trim();
+
+    if (reason.length < 5) {
+      setLifecycleError(number, {
+        cancellationReason: "Enter at least five characters.",
+      });
+      return;
+    }
+    if (typeof onCancelPutawayTask !== "function") {
+      setLifecycleError(number, { form: "Cancellation service unavailable." });
+      return;
+    }
+    if (!window.confirm(`Cancel putaway task ${number}?`)) return;
+
+    setBusyAction(`cancel:${number}`);
+    setLifecycleErrors((current) => ({ ...current, [number]: {} }));
+    try {
+      const result = await onCancelPutawayTask({
+        taskNumber: number,
+        reason,
+      });
+      if (!result?.success) {
+        setLifecycleError(number, {
+          form: result?.message || "Unable to cancel the task.",
+        });
+        return;
+      }
+      setLifecycleForms((current) => {
+        const next = { ...current };
+        delete next[number];
+        return next;
+      });
+    } catch (error) {
+      setLifecycleError(number, {
+        form: error instanceof Error ? error.message : "Unable to cancel task.",
+      });
+    } finally {
+      setBusyAction("");
+    }
+  }
+
+  async function completeTask(task) {
+    const number = taskNumber(task);
+    const form = completionForm(number);
+    if (!form.destinationLocation) {
+      setCompletionError(number, {
+        destinationLocation: "Select a destination location.",
+      });
+      return;
+    }
+    if (typeof onCompletePutawayTask !== "function") {
+      setCompletionError(number, { form: "Completion service unavailable." });
+      return;
+    }
+
+    setBusyAction(`complete:${number}`);
+    setCompletionErrors((current) => ({ ...current, [number]: {} }));
+    try {
+      const result = await onCompletePutawayTask({
+        taskNumber: number,
+        destinationLocation: form.destinationLocation,
+        notes: form.notes.trim(),
+      });
+      if (!result?.success) {
+        setCompletionError(number, {
+          form: result?.message || "Unable to complete the task.",
+        });
+        return;
+      }
+      setCompletionForms((current) => {
+        const next = { ...current };
+        delete next[number];
+        return next;
+      });
+    } catch (error) {
+      setCompletionError(number, {
+        form:
+          error instanceof Error ? error.message : "Unable to complete task.",
+      });
+    } finally {
+      setBusyAction("");
+    }
   }
 
   return (
     <div className="putaway-page">
       <section className="putaway-summary-grid">
-        <article className="putaway-summary-card">
-          <div>
-            <p>Total tasks</p>
-
-            <strong>
-              {putawayTasks.length}
-            </strong>
-
-            <span>
-              Permanent putaway tasks
-            </span>
-          </div>
-
-          <div className="putaway-summary-icon putaway-blue">
-            <ClipboardList size={22} />
-          </div>
-        </article>
-
-        <article className="putaway-summary-card">
-          <div>
-            <p>Pending tasks</p>
-
-            <strong>
-              {pendingTasks}
-            </strong>
-
-            <span>
-              Awaiting warehouse completion
-            </span>
-          </div>
-
-          <div className="putaway-summary-icon putaway-amber">
-            <Truck size={22} />
-          </div>
-        </article>
-
-        <article className="putaway-summary-card">
-          <div>
-            <p>Pending units</p>
-
-            <strong>
-              {pendingUnits.toLocaleString()}
-            </strong>
-
-            <span>
-              Units awaiting putaway
-            </span>
-          </div>
-
-          <div className="putaway-summary-icon putaway-purple">
-            <Boxes size={22} />
-          </div>
-        </article>
-
-        <article className="putaway-summary-card">
-          <div>
-            <p>Completed tasks</p>
-
-            <strong>
-              {completedTasks}
-            </strong>
-
-            <span>
-              Successfully stored tasks
-            </span>
-          </div>
-
-          <div className="putaway-summary-icon putaway-green">
-            <CheckCircle2 size={22} />
-          </div>
-        </article>
+        {[
+          ["Total tasks", putawayTasks.length, "Permanent putaway tasks", ClipboardList, "putaway-blue"],
+          ["Open tasks", openTasks, "Pending, assigned or active", Truck, "putaway-amber"],
+          ["Open units", openUnits.toLocaleString(), "Units awaiting storage", Boxes, "putaway-purple"],
+          ["Completed tasks", completedTasks, "Successfully stored tasks", CheckCircle2, "putaway-green"],
+        ].map(([label, value, detail, Icon, colour]) => (
+          <article className="putaway-summary-card" key={label}>
+            <div>
+              <p>{label}</p>
+              <strong>{value}</strong>
+              <span>{detail}</span>
+            </div>
+            <div className={`putaway-summary-icon ${colour}`}>
+              <Icon size={22} />
+            </div>
+          </article>
+        ))}
       </section>
 
       <section className="putaway-workspace">
         <article className="putaway-form-card">
           <div className="page-card-heading">
             <div>
-              <h2>
-                Create putaway task
-              </h2>
-
-              <p>
-                Create a warehouse task
-                from an eligible goods
-                receipt.
-              </p>
+              <h2>Create putaway task</h2>
+              <p>Create a warehouse task from an eligible goods receipt.</p>
             </div>
-
             <span className="heading-icon">
               <PackageCheck size={22} />
             </span>
           </div>
 
-          <form
-            className="putaway-form"
-            onSubmit={handleCreateTask}
-            noValidate
-          >
+          <form className="putaway-form" onSubmit={createTask} noValidate>
             {taskErrors.form && (
-              <div
-                className="product-form-error"
-                role="alert"
-              >
+              <div className="product-form-error" role="alert">
                 {taskErrors.form}
               </div>
             )}
-
             <div className="form-grid">
               <div className="form-field form-field-full">
-                <label htmlFor="putawayReceipt">
-                  Goods receipt
-                </label>
-
+                <label htmlFor="putawayReceipt">Goods receipt</label>
                 <select
                   id="putawayReceipt"
                   name="receiptNumber"
-                  value={
-                    taskForm.receiptNumber
-                  }
-                  disabled={creatingTask}
-                  aria-invalid={Boolean(
-                    taskErrors.receiptNumber
-                  )}
-                  onChange={
-                    handleTaskFormChange
-                  }
+                  value={taskForm.receiptNumber}
+                  disabled={creating}
+                  onChange={changeTaskForm}
                 >
-                  <option value="">
-                    Select goods receipt
-                  </option>
-
-                  {eligibleReceipts.map(
-                    (receipt) => {
-                      const receiptNumber =
-                        getReceiptNumber(
-                          receipt
-                        );
-
-                      return (
-                        <option
-                          key={
-                            receipt.databaseId ||
-                            receiptNumber
-                          }
-                          value={
-                            receiptNumber
-                          }
-                        >
-                          {receiptNumber} |{" "}
-                          {receipt.productSku ||
-                            "No SKU"}{" "}
-                          |{" "}
-                          {receipt.productName ||
-                            "Unnamed product"}
-                        </option>
-                      );
-                    }
-                  )}
+                  <option value="">Select goods receipt</option>
+                  {eligibleReceipts.map((receipt) => {
+                    const number = receiptNumber(receipt);
+                    return (
+                      <option key={receipt.databaseId || number} value={number}>
+                        {number} | {receipt.productSku || "No SKU"} |{" "}
+                        {receipt.productName || "Unnamed product"}
+                      </option>
+                    );
+                  })}
                 </select>
-
                 {taskErrors.receiptNumber && (
-                  <p className="field-error">
-                    {
-                      taskErrors.receiptNumber
-                    }
-                  </p>
+                  <p className="field-error">{taskErrors.receiptNumber}</p>
                 )}
               </div>
 
               <div className="form-field">
-                <label htmlFor="putawayProduct">
-                  Product
-                </label>
-
+                <label htmlFor="putawayProduct">Product</label>
                 <input
                   id="putawayProduct"
-                  type="text"
-                  value={
-                    selectedProductSku
-                  }
+                  value={selectedProductSku}
                   placeholder="Select a receipt first"
                   readOnly
                 />
-
                 {taskErrors.productSku && (
-                  <p className="field-error">
-                    {
-                      taskErrors.productSku
-                    }
-                  </p>
+                  <p className="field-error">{taskErrors.productSku}</p>
                 )}
               </div>
 
               <div className="form-field">
-                <label htmlFor="putawayPriority">
-                  Priority
-                </label>
-
+                <label htmlFor="putawayPriority">Priority</label>
                 <select
                   id="putawayPriority"
                   name="priority"
-                  value={
-                    taskForm.priority
-                  }
-                  disabled={creatingTask}
-                  aria-invalid={Boolean(
-                    taskErrors.priority
-                  )}
-                  onChange={
-                    handleTaskFormChange
-                  }
+                  value={taskForm.priority}
+                  disabled={creating}
+                  onChange={changeTaskForm}
                 >
-                  {priorityOptions.map(
-                    (priority) => (
-                      <option
-                        key={priority}
-                        value={priority}
-                      >
-                        {priority}
-                      </option>
-                    )
-                  )}
+                  {priorities.map((priority) => (
+                    <option key={priority} value={priority}>
+                      {priority}
+                    </option>
+                  ))}
                 </select>
-
-                {taskErrors.priority && (
-                  <p className="field-error">
-                    {taskErrors.priority}
-                  </p>
-                )}
               </div>
 
               <div className="form-field form-field-full">
-                <label htmlFor="putawayNotes">
-                  Task notes
-                </label>
-
+                <label htmlFor="putawayNotes">Task notes</label>
                 <textarea
                   id="putawayNotes"
                   name="notes"
                   value={taskForm.notes}
-                  placeholder="Optional putaway instructions"
                   rows="3"
-                  disabled={creatingTask}
-                  onChange={
-                    handleTaskFormChange
-                  }
+                  disabled={creating}
+                  placeholder="Optional putaway instructions"
+                  onChange={changeTaskForm}
                 />
               </div>
             </div>
 
             <button
-              type="submit"
               className="primary-button putaway-submit-button"
+              type="submit"
               disabled={
-                creatingTask ||
-                !selectedReceiptNumber ||
-                !selectedProductSku
+                creating || !selectedReceiptNumber || !selectedProductSku
               }
             >
-              {creatingTask ? (
+              {creating ? (
                 <>
-                  <LoaderCircle
-                    className="product-submit-spinner"
-                    size={19}
-                  />
-
+                  <LoaderCircle className="product-submit-spinner" size={19} />
                   Creating task
                 </>
               ) : (
                 <>
-                  <PackageCheck
-                    size={19}
-                  />
-
+                  <PackageCheck size={19} />
                   Create putaway task
                 </>
               )}
@@ -919,54 +588,21 @@ function PutawayPage({
         <article className="putaway-guidance-card">
           <div className="page-card-heading">
             <div>
-              <h2>
-                Putaway controls
-              </h2>
-
-              <p>
-                Receiving-to-storage
-                workflow
-              </p>
+              <h2>Putaway lifecycle</h2>
+              <p>Controlled warehouse workflow</p>
             </div>
           </div>
-
           <ol className="receiving-control-list">
-            <li>
-              Select an eligible goods
-              receipt.
-            </li>
-
-            <li>
-              Confirm the accepted product
-              and quantity.
-            </li>
-
-            <li>
-              Create the pending putaway
-              task.
-            </li>
-
-            <li>
-              Select an active storage
-              destination.
-            </li>
-
-            <li>
-              Physically move the
-              inventory.
-            </li>
-
-            <li>
-              Complete the task after
-              verification.
-            </li>
+            <li>Create a task from an eligible receipt.</li>
+            <li>Assign it to an active warehouse operator.</li>
+            <li>Start the assigned task.</li>
+            <li>Move the inventory physically.</li>
+            <li>Select the verified storage destination.</li>
+            <li>Complete the task after verification.</li>
           </ol>
-
           <div className="receiving-notice">
-            Creating a task does not move
-            inventory. Inventory moves only
-            when an authorised user completes
-            the putaway task.
+            Inventory moves only when an in-progress task is completed.
+            Assignment, starting and cancellation do not move stock.
           </div>
         </article>
       </section>
@@ -974,354 +610,346 @@ function PutawayPage({
       <section className="putaway-register-card">
         <div className="putaway-register-header">
           <div>
-            <h2>
-              Putaway task register
-            </h2>
-
-            <p>
-              Pending and completed
-              warehouse putaway tasks
-            </p>
+            <h2>Putaway task register</h2>
+            <p>Secured warehouse task lifecycle</p>
           </div>
-
           <div className="putaway-search">
             <Search size={17} />
-
             <input
               type="search"
-              value={searchQuery}
+              value={search}
               placeholder="Search putaway tasks"
               aria-label="Search putaway tasks"
-              onChange={(event) =>
-                setSearchQuery(
-                  event.target.value
-                )
-              }
+              onChange={(event) => setSearch(event.target.value)}
             />
           </div>
         </div>
 
         <div className="putaway-filters">
-          {statusFilters.map((filter) => (
+          {filters.map(([id, label]) => (
             <button
               type="button"
-              key={filter.id}
+              key={id}
               className={`putaway-filter-button ${
-                activeFilter === filter.id
-                  ? "putaway-filter-button-active"
-                  : ""
+                filter === id ? "putaway-filter-button-active" : ""
               }`}
-              onClick={() =>
-                setActiveFilter(filter.id)
-              }
+              onClick={() => setFilter(id)}
             >
-              {filter.label}
+              {label}
             </button>
           ))}
         </div>
 
         <div className="putaway-results-summary">
-          Showing{" "}
-          {filteredTasks.length.toLocaleString()}{" "}
-          of{" "}
-          {putawayTasks.length.toLocaleString()}{" "}
-          tasks
+          Showing {filteredTasks.length.toLocaleString()} of{" "}
+          {putawayTasks.length.toLocaleString()} tasks
         </div>
 
-        {filteredTasks.length > 0 ? (
+        {filteredTasks.length ? (
           <div className="putaway-task-list">
             {filteredTasks.map((task) => {
-              const taskNumber =
-                getTaskNumber(task);
-
-              const completionForm =
-                getCompletionForm(
-                  taskNumber
-                );
-
-              const errors =
-                completionErrors[
-                  taskNumber
-                ] || {};
-
-              const taskIsCompleting =
-                completingTaskNumber ===
-                taskNumber;
-
+              const number = taskNumber(task);
+              const lifecycle = lifecycleForm(number, task.assignedTo || "");
+              const completion = completionForm(number);
+              const lifeErrors = lifecycleErrors[number] || {};
+              const completeErrors = completionErrors[number] || {};
+              const assignedUser =
+                Boolean(currentUserId) && currentUserId === task.assignedTo;
+              const canAssign =
+                canManage && ["Pending", "Assigned"].includes(task.status);
+              const canStart =
+                task.status === "Assigned" && (assignedUser || canManage);
+              const canCancel =
+                canManage && ["Pending", "Assigned"].includes(task.status);
               const canComplete =
-                task.status !==
-                  "Completed" &&
-                task.status !==
-                  "Cancelled";
+                task.status === "In progress" && (assignedUser || canManage);
+              const actionBusy = busyAction.endsWith(`:${number}`);
 
               return (
                 <article
                   className="putaway-task-card"
-                  key={
-                    task.databaseId ||
-                    taskNumber
-                  }
+                  key={task.databaseId || number}
                 >
                   <div className="putaway-task-heading">
                     <div className="putaway-task-product">
                       <span className="putaway-task-icon">
                         <Boxes size={19} />
                       </span>
-
                       <div>
-                        <h3>
-                          {task.productName ||
-                            "Unnamed product"}
-                        </h3>
-
+                        <h3>{task.productName || "Unnamed product"}</h3>
                         <p>
-                          {task.productSku ||
-                            "No SKU"}{" "}
-                          | {taskNumber}
+                          {task.productSku || "No SKU"} | {number}
                         </p>
                       </div>
                     </div>
-
                     <div className="putaway-task-badges">
                       <span
-                        className={`putaway-priority ${getPriorityClass(
+                        className={`putaway-priority ${priorityClass(
                           task.priority
                         )}`}
                       >
-                        {task.priority ||
-                          "Normal"}
+                        {task.priority || "Normal"}
                       </span>
-
                       <span
-                        className={`putaway-status ${getStatusClass(
-                          task.status
-                        )}`}
+                        className={`putaway-status ${statusClass(task.status)}`}
                       >
-                        {task.status ||
-                          "Pending"}
+                        {task.status || "Pending"}
                       </span>
                     </div>
                   </div>
 
                   <div className="putaway-task-details">
                     <div>
-                      <span>
-                        Receipt
-                      </span>
-
+                      <span>Receipt</span>
+                      <strong>{task.receiptNumber || "Not recorded"}</strong>
+                    </div>
+                    <div>
+                      <span>Purchase order</span>
+                      <strong>{task.purchaseOrder || "Not recorded"}</strong>
+                    </div>
+                    <div>
+                      <span>Source</span>
+                      <strong>{task.sourceLocation || "Not recorded"}</strong>
+                    </div>
+                    <div>
+                      <span>Destination</span>
+                      <strong>{task.destinationLocation || "Not selected"}</strong>
+                    </div>
+                    <div>
+                      <span>Quantity</span>
                       <strong>
-                        {task.receiptNumber ||
-                          "Not recorded"}
+                        {Number(task.quantity || 0).toLocaleString()}
                       </strong>
                     </div>
-
                     <div>
-                      <span>
-                        Purchase order
-                      </span>
-
-                      <strong>
-                        {task.purchaseOrder ||
-                          "Not recorded"}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>
-                        Source
-                      </span>
-
-                      <strong>
-                        {task.sourceLocation ||
-                          "Not recorded"}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>
-                        Destination
-                      </span>
-
-                      <strong>
-                        {task.destinationLocation ||
-                          "Not selected"}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>
-                        Quantity
-                      </span>
-
-                      <strong>
-                        {Number(
-                          task.quantity || 0
-                        ).toLocaleString()}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>
-                        Created
-                      </span>
-
-                      <strong>
-                        {task.createdDate ||
-                          "Unknown date"}
-                      </strong>
-
-                      <small>
-                        {task.createdTime ||
-                          "Unknown time"}
-                      </small>
+                      <span>Assigned to</span>
+                      <strong>{task.assignedToName || "Unassigned"}</strong>
                     </div>
                   </div>
 
                   {task.notes && (
                     <div className="putaway-task-notes">
-                      <span>
-                        Task notes
-                      </span>
+                      <span>Task notes</span>
+                      <p>{task.notes}</p>
+                    </div>
+                  )}
 
-                      <p>
-                        {task.notes}
-                      </p>
+                  {(canAssign || canStart || canCancel) && (
+                    <div className="putaway-completion-panel">
+                      {lifeErrors.form && (
+                        <div className="product-form-error" role="alert">
+                          {lifeErrors.form}
+                        </div>
+                      )}
+
+                      {canAssign && (
+                        <div className="form-field">
+                          <label htmlFor={`operator-${number}`}>
+                            Warehouse operator
+                          </label>
+                          <select
+                            id={`operator-${number}`}
+                            name="assigneeProfileId"
+                            value={lifecycle.assigneeProfileId}
+                            disabled={actionBusy || putawayOperatorsLoading}
+                            onChange={(event) =>
+                              changeLifecycleForm(number, event)
+                            }
+                          >
+                            <option value="">Select operator</option>
+                            {putawayOperators.map((operator) => {
+                              const id = operator.profileId || operator.id;
+                              return (
+                                <option key={id} value={id}>
+                                  {operator.fullName} |{" "}
+                                  {operator.roleName || operator.role}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          {lifeErrors.assigneeProfileId && (
+                            <p className="field-error">
+                              {lifeErrors.assigneeProfileId}
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            className="primary-button putaway-complete-button"
+                            disabled={
+                              actionBusy ||
+                              putawayOperatorsLoading ||
+                              !lifecycle.assigneeProfileId
+                            }
+                            onClick={() => assignTask(task)}
+                          >
+                            {busyAction === `assign:${number}` ? (
+                              <>
+                                <LoaderCircle
+                                  className="product-submit-spinner"
+                                  size={18}
+                                />
+                                Assigning task
+                              </>
+                            ) : (
+                              <>
+                                <UserRoundCheck size={18} />
+                                {task.status === "Assigned"
+                                  ? "Reassign task"
+                                  : "Assign task"}
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+
+                      {canStart && (
+                        <button
+                          type="button"
+                          className="primary-button putaway-complete-button"
+                          disabled={actionBusy}
+                          onClick={() => startTask(task)}
+                        >
+                          {busyAction === `start:${number}` ? (
+                            <>
+                              <LoaderCircle
+                                className="product-submit-spinner"
+                                size={18}
+                              />
+                              Starting task
+                            </>
+                          ) : (
+                            <>
+                              <Play size={18} />
+                              Start putaway task
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {canCancel && (
+                        <div className="form-field">
+                          <label htmlFor={`cancel-${number}`}>
+                            Cancellation reason
+                          </label>
+                          <input
+                            id={`cancel-${number}`}
+                            name="cancellationReason"
+                            value={lifecycle.cancellationReason}
+                            disabled={actionBusy}
+                            placeholder="Enter cancellation reason"
+                            onChange={(event) =>
+                              changeLifecycleForm(number, event)
+                            }
+                          />
+                          {lifeErrors.cancellationReason && (
+                            <p className="field-error">
+                              {lifeErrors.cancellationReason}
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            className="secondary-button putaway-complete-button"
+                            disabled={
+                              actionBusy ||
+                              lifecycle.cancellationReason.trim().length < 5
+                            }
+                            onClick={() => cancelTask(task)}
+                          >
+                            {busyAction === `cancel:${number}` ? (
+                              <>
+                                <LoaderCircle
+                                  className="product-submit-spinner"
+                                  size={18}
+                                />
+                                Cancelling task
+                              </>
+                            ) : (
+                              <>
+                                <XCircle size={18} />
+                                Cancel task
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {canComplete && (
                     <div className="putaway-completion-panel">
-                      {errors.form && (
-                        <div
-                          className="product-form-error"
-                          role="alert"
-                        >
-                          {errors.form}
+                      {completeErrors.form && (
+                        <div className="product-form-error" role="alert">
+                          {completeErrors.form}
                         </div>
                       )}
-
                       <div className="form-grid">
                         <div className="form-field">
-                          <label
-                            htmlFor={`destination-${taskNumber}`}
-                          >
+                          <label htmlFor={`destination-${number}`}>
                             Destination location
                           </label>
-
                           <select
-                            id={`destination-${taskNumber}`}
+                            id={`destination-${number}`}
                             name="destinationLocation"
-                            value={
-                              completionForm.destinationLocation
-                            }
-                            disabled={
-                              taskIsCompleting
-                            }
-                            aria-invalid={Boolean(
-                              errors.destinationLocation
-                            )}
+                            value={completion.destinationLocation}
+                            disabled={actionBusy}
                             onChange={(event) =>
-                              handleCompletionChange(
-                                taskNumber,
-                                event
-                              )
+                              changeCompletionForm(number, event)
                             }
                           >
-                            <option value="">
-                              Select destination
-                            </option>
-
+                            <option value="">Select destination</option>
                             {destinationLocations
                               .filter(
                                 (location) =>
-                                  location.code !==
-                                  task.sourceLocation
+                                  location.code !== task.sourceLocation
                               )
-                              .map(
-                                (location) => (
-                                  <option
-                                    key={
-                                      location.id
-                                    }
-                                    value={
-                                      location.code
-                                    }
-                                  >
-                                    {
-                                      location.code
-                                    }
-                                  </option>
-                                )
-                              )}
+                              .map((location) => (
+                                <option
+                                  key={location.id || location.code}
+                                  value={location.code}
+                                >
+                                  {location.code}
+                                </option>
+                              ))}
                           </select>
-
-                          {errors.destinationLocation && (
+                          {completeErrors.destinationLocation && (
                             <p className="field-error">
-                              {
-                                errors.destinationLocation
-                              }
+                              {completeErrors.destinationLocation}
                             </p>
                           )}
                         </div>
-
                         <div className="form-field">
-                          <label
-                            htmlFor={`notes-${taskNumber}`}
-                          >
+                          <label htmlFor={`notes-${number}`}>
                             Completion notes
                           </label>
-
                           <input
-                            id={`notes-${taskNumber}`}
+                            id={`notes-${number}`}
                             name="notes"
-                            type="text"
-                            value={
-                              completionForm.notes
-                            }
+                            value={completion.notes}
+                            disabled={actionBusy}
                             placeholder="Optional completion notes"
-                            disabled={
-                              taskIsCompleting
-                            }
                             onChange={(event) =>
-                              handleCompletionChange(
-                                taskNumber,
-                                event
-                              )
+                              changeCompletionForm(number, event)
                             }
                           />
                         </div>
                       </div>
-
                       <button
                         type="button"
                         className="primary-button putaway-complete-button"
-                        disabled={
-                          taskIsCompleting ||
-                          Boolean(
-                            completingTaskNumber
-                          )
-                        }
-                        onClick={() =>
-                          handleCompleteTask(
-                            taskNumber
-                          )
-                        }
+                        disabled={actionBusy}
+                        onClick={() => completeTask(task)}
                       >
-                        {taskIsCompleting ? (
+                        {busyAction === `complete:${number}` ? (
                           <>
                             <LoaderCircle
                               className="product-submit-spinner"
                               size={18}
                             />
-
                             Completing task
                           </>
                         ) : (
                           <>
-                            <MapPin
-                              size={18}
-                            />
-
+                            <MapPin size={18} />
                             Complete putaway
                           </>
                         )}
@@ -1329,23 +957,23 @@ function PutawayPage({
                     </div>
                   )}
 
-                  {task.status ===
-                    "Completed" && (
+                  {task.status === "Completed" && (
                     <div className="putaway-completed-note">
-                      <CheckCircle2
-                        size={17}
-                      />
-
+                      <CheckCircle2 size={17} />
                       <span>
-                        Completed by{" "}
-                        {task.completedByName ||
-                          "Warehouse User"}{" "}
-                        on{" "}
-                        {task.completedDate ||
-                          "Unknown date"}{" "}
-                        at{" "}
-                        {task.completedTime ||
-                          "Unknown time"}
+                        Completed by {task.completedByName || "Warehouse User"}{" "}
+                        on {task.completedDate || "Unknown date"} at{" "}
+                        {task.completedTime || "Unknown time"}
+                      </span>
+                    </div>
+                  )}
+
+                  {task.status === "Cancelled" && (
+                    <div className="putaway-completed-note">
+                      <XCircle size={17} />
+                      <span>
+                        This putaway task was cancelled before inventory
+                        movement.
                       </span>
                     </div>
                   )}
@@ -1356,24 +984,16 @@ function PutawayPage({
         ) : (
           <div className="movement-empty-state">
             <PackageCheck size={38} />
-
-            <h3>
-              No putaway tasks found
-            </h3>
-
-            <p>
-              No putaway tasks match the
-              current search and status
-              filter, or no tasks have been
-              created yet.
-            </p>
-
-            {(searchQuery ||
-              activeFilter !== "all") && (
+            <h3>No putaway tasks found</h3>
+            <p>No tasks match the current search and status filter.</p>
+            {(search || filter !== "all") && (
               <button
                 type="button"
                 className="secondary-button"
-                onClick={clearFilters}
+                onClick={() => {
+                  setSearch("");
+                  setFilter("all");
+                }}
               >
                 Clear filters
               </button>
