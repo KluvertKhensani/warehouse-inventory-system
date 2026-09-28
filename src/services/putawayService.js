@@ -160,47 +160,9 @@ function mapPutawayOperator(
 
 export async function fetchPutawayTasks() {
   const { data, error } =
-    await supabase
-      .from(
-        "putaway_task_view"
-      )
-      .select(
-        `
-        id,
-        task_number,
-        quantity,
-        status,
-        priority,
-        notes,
-        created_at,
-        updated_at,
-        completed_at,
-        receipt_id,
-        receipt_number,
-        purchase_order,
-        supplier,
-        delivery_reference,
-        receipt_status,
-        receipt_line_id,
-        product_id,
-        product_sku,
-        product_name,
-        source_location_id,
-        source_location_code,
-        destination_location_id,
-        destination_location_code,
-        assigned_to,
-        assigned_to_name,
-        completed_by,
-        completed_by_name
-        `
-      )
-      .order(
-        "created_at",
-        {
-          ascending: false,
-        }
-      );
+    await supabase.rpc(
+      "list_visible_putaway_tasks"
+    );
 
   if (error) {
     throw new Error(
