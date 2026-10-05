@@ -98,41 +98,25 @@ textarea:focus-visible {
 
 .sidebar-brand {
   display: flex;
-  min-height: 80px;
+  min-height: 96px;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding: 16px 24px;
+  padding: 15px 20px;
   border-bottom: 1px solid #f1f5f9;
 }
 
-.brand-icon {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  flex-shrink: 0;
-  place-items: center;
-  border-radius: 14px;
-  color: #ffffff;
-  background: var(--primary);
+.sidebar-brand-logo {
+  display: block;
+  width: min(100%, 190px);
+  max-height: 66px;
+  object-fit: contain;
+  object-position: left center;
 }
 
-.brand-name,
-.brand-subtitle,
 .profile-name,
 .profile-role {
   margin: 0;
-}
-
-.brand-name {
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.brand-subtitle {
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .sidebar-close-button {
@@ -4083,5 +4067,251 @@ textarea:focus-visible {
   .putaway-guidance-card,
   .putaway-task-card {
     border-radius: 14px;
+  }
+}
+
+/* SAA sign-in page */
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(
+    135deg,
+    #f4f8fc 0%,
+    #ffffff 48%,
+    #eaf3fa 100%
+  );
+  box-sizing: border-box;
+}
+
+.login-card {
+  width: min(100%, 430px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  padding: 42px 34px;
+  background: #ffffff;
+  border: 1px solid #d8e4ed;
+  border-radius: 24px;
+  box-shadow: 0 24px 64px rgba(10, 45, 74, 0.14);
+  box-sizing: border-box;
+}
+
+.login-logo {
+  display: block;
+  width: min(100%, 280px);
+  max-height: 145px;
+  object-fit: contain;
+}
+
+.login-form {
+  width: 100%;
+  display: grid;
+  gap: 20px;
+}
+
+.login-field {
+  display: grid;
+  gap: 8px;
+}
+
+.login-field label {
+  color: #18354f;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.login-field input {
+  width: 100%;
+  min-height: 50px;
+  padding: 12px 14px;
+  color: #172b3a;
+  background: #ffffff;
+  border: 1px solid #b9cbd9;
+  border-radius: 12px;
+  outline: none;
+  box-sizing: border-box;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.login-field input:focus {
+  border-color: #0072bc;
+  box-shadow: 0 0 0 3px rgba(0, 114, 188, 0.16);
+}
+
+.login-field input:disabled {
+  color: #62798b;
+  background: #f2f6f9;
+  cursor: not-allowed;
+}
+
+.login-password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-password-field input {
+  padding-right: 50px;
+}
+
+.password-visibility-button {
+  position: absolute;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #45677f;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.password-visibility-button:hover:not(:disabled) {
+  color: #0072bc;
+  background: #edf6fc;
+}
+
+.password-visibility-button:focus-visible {
+  outline: 3px solid rgba(0, 114, 188, 0.2);
+  outline-offset: 1px;
+}
+
+.password-visibility-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.login-submit-button {
+  width: 100%;
+  min-height: 50px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 2px;
+  padding: 12px 18px;
+  color: #ffffff;
+  background: #0072bc;
+  border: 0;
+  border-radius: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.login-submit-button:hover:not(:disabled) {
+  background: #005f9e;
+}
+
+.login-submit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.login-error {
+  width: 100%;
+  padding: 12px 14px;
+  color: #9b1c1c;
+  background: #fff1f1;
+  border: 1px solid #ffc9c9;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.login-spinner {
+  animation: login-spinner-rotation 800ms linear infinite;
+}
+
+@keyframes login-spinner-rotation {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 520px) {
+  .login-page {
+    padding: 16px;
+  }
+
+  .login-card {
+    gap: 22px;
+    padding: 30px 20px;
+    border-radius: 18px;
+  }
+
+  .login-logo {
+    width: min(100%, 235px);
+    max-height: 125px;
+  }
+}
+
+/* SAA authentication loading screen */
+
+.auth-loading-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 24px;
+  background: linear-gradient(
+    135deg,
+    #f4f8fc 0%,
+    #ffffff 48%,
+    #eaf3fa 100%
+  );
+  box-sizing: border-box;
+}
+
+.auth-loading-logo {
+  display: block;
+  width: min(80vw, 280px);
+  max-height: 145px;
+  object-fit: contain;
+}
+
+.auth-loading-spinner {
+  color: #0072bc;
+  animation: auth-loading-rotation 800ms linear infinite;
+}
+
+@keyframes auth-loading-rotation {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.screen-reader-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+}
+
+@media (max-width: 520px) {
+  .auth-loading-screen {
+    gap: 20px;
+    padding: 16px;
+  }
+
+  .auth-loading-logo {
+    width: min(82vw, 235px);
+    max-height: 125px;
   }
 }

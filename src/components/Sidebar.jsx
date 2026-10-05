@@ -2,9 +2,10 @@ import {
   LogOut,
   Mail,
   UserCircle2,
-  Warehouse,
   X,
 } from "lucide-react";
+import { createElement } from "react";
+import saaLogo from "../assets/saa-logo.png";
 import { navigationItems } from "../data/navigation";
 import { supabase } from "../lib/supabase";
 
@@ -62,24 +63,17 @@ function Sidebar({
       )}
 
       <aside
-        className={`sidebar ${
-          mobileMenuOpen
-            ? "sidebar-mobile-open"
-            : ""
-        }`}
+        className={`sidebar ${mobileMenuOpen
+          ? "sidebar-mobile-open"
+          : ""
+          }`}
       >
         <div className="sidebar-brand">
-          <div className="brand-icon">
-            <Warehouse size={26} />
-          </div>
-
-          <div>
-            <p className="brand-name">WMS</p>
-
-            <p className="brand-subtitle">
-              Inventory Control
-            </p>
-          </div>
+          {createElement("img", {
+            className: "sidebar-brand-logo",
+            src: saaLogo,
+            alt: "South African Airways",
+          })}
 
           <button
             type="button"
@@ -101,11 +95,10 @@ function Sidebar({
               <button
                 type="button"
                 key={item.id}
-                className={`navigation-button ${
-                  isActive
-                    ? "navigation-button-active"
-                    : ""
-                }`}
+                className={`navigation-button ${isActive
+                  ? "navigation-button-active"
+                  : ""
+                  }`}
                 onClick={() =>
                   handleNavigation(item.id)
                 }
