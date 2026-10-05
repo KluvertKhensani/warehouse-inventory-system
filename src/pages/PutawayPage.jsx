@@ -630,9 +630,8 @@ function PutawayPage({
             <button
               type="button"
               key={id}
-              className={`putaway-filter-button ${
-                filter === id ? "putaway-filter-button-active" : ""
-              }`}
+              className={`putaway-filter-button ${filter === id ? "putaway-filter-button-active" : ""
+                }`}
               onClick={() => setFilter(id)}
             >
               {label}
@@ -725,6 +724,25 @@ function PutawayPage({
                       <span>Assigned to</span>
                       <strong>{task.assignedToName || "Unassigned"}</strong>
                     </div>
+                    {task.assignedDate && (
+                      <div>
+                        <span>Assigned</span>
+                        <strong>
+                          {task.assignedDate} at{" "}
+                          {task.assignedTime}
+                        </strong>
+                      </div>
+                    )}
+
+                    {task.startedDate && (
+                      <div>
+                        <span>Started</span>
+                        <strong>
+                          {task.startedDate} at{" "}
+                          {task.startedTime}
+                        </strong>
+                      </div>
+                    )}
                   </div>
 
                   {task.notes && (
@@ -971,9 +989,26 @@ function PutawayPage({
                   {task.status === "Cancelled" && (
                     <div className="putaway-completed-note">
                       <XCircle size={17} />
+
                       <span>
-                        This putaway task was cancelled before inventory
-                        movement.
+                        Cancelled by{" "}
+                        {task.cancelledByName ||
+                          "Warehouse User"}
+
+                        {task.cancelledDate && (
+                          <>
+                            {" "}on{" "}
+                            {task.cancelledDate} at{" "}
+                            {task.cancelledTime}
+                          </>
+                        )}
+
+                        {task.cancellationReason && (
+                          <>
+                            {". Reason: "}
+                            {task.cancellationReason}
+                          </>
+                        )}
                       </span>
                     </div>
                   )}

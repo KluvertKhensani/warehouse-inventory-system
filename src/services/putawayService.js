@@ -125,6 +125,42 @@ function mapPutawayTask(task) {
       formatPutawayTime(
         task.created_at
       ),
+    assignedAt:
+      task.assigned_at || null,
+    assignedDate:
+      formatPutawayDate(
+        task.assigned_at
+      ),
+    assignedTime:
+      formatPutawayTime(
+        task.assigned_at
+      ),
+    startedAt:
+      task.started_at || null,
+    startedDate:
+      formatPutawayDate(
+        task.started_at
+      ),
+    startedTime:
+      formatPutawayTime(
+        task.started_at
+      ),
+    cancelledAt:
+      task.cancelled_at || null,
+    cancelledDate:
+      formatPutawayDate(
+        task.cancelled_at
+      ),
+    cancelledTime:
+      formatPutawayTime(
+        task.cancelled_at
+      ),
+    cancelledBy:
+      task.cancelled_by,
+    cancelledByName:
+      task.cancelled_by_name || "",
+    cancellationReason:
+      task.cancellation_reason || "",
     completedDate:
       formatPutawayDate(
         task.completed_at
@@ -291,7 +327,7 @@ export async function assignPutawayTask(
 
   const assigneeProfileId = String(
     assignmentData.assigneeProfileId ||
-      ""
+    ""
   ).trim();
 
   if (!taskNumber) {
@@ -489,7 +525,7 @@ export async function completePutawayTask(
   const destinationLocation =
     String(
       completionData.destinationLocation ||
-        ""
+      ""
     )
       .trim()
       .toUpperCase();
