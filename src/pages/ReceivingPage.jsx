@@ -20,6 +20,12 @@ const emptyReceiptForm = {
   productSku: "",
   expectedQuantity: "",
   receivedQuantity: "",
+  expectedPalletQuantity: "",
+  expectedNumberOfPallets: "",
+  receivedPalletQuantity: "",
+  receivedNumberOfPallets: "",
+  expectedCases: "",
+  receivedCases: "",
   rejectedQuantity: "0",
   receivingArea: "JHB-RECEIVING-01",
 };
@@ -42,13 +48,59 @@ function ReceivingPage({
       product.sku === formData.productSku
   );
 
-  const expectedQuantity = Number(
-    formData.expectedQuantity || 0
+  const selectedProductUnit =
+    selectedProduct?.unit || "Each";
+
+  const usesPalletQuantities =
+    selectedProductUnit === "Pallets";
+
+  const usesCaseQuantities =
+    selectedProductUnit === "Cases";
+
+  const expectedPalletQuantity = Number(
+    formData.expectedPalletQuantity || 0
   );
 
-  const receivedQuantity = Number(
-    formData.receivedQuantity || 0
+  const expectedNumberOfPallets = Number(
+    formData.expectedNumberOfPallets || 0
   );
+
+  const receivedPalletQuantity = Number(
+    formData.receivedPalletQuantity || 0
+  );
+
+  const receivedNumberOfPallets = Number(
+    formData.receivedNumberOfPallets || 0
+  );
+
+  const expectedCases = Number(
+    formData.expectedCases || 0
+  );
+
+  const receivedCases = Number(
+    formData.receivedCases || 0
+  );
+
+  const expectedQuantity =
+    usesPalletQuantities
+      ? expectedPalletQuantity *
+      expectedNumberOfPallets
+      : usesCaseQuantities
+        ? expectedCases
+        : Number(
+          formData.expectedQuantity || 0
+        );
+
+  const receivedQuantity =
+    usesPalletQuantities
+      ? receivedPalletQuantity *
+      receivedNumberOfPallets
+      : usesCaseQuantities
+        ? receivedCases
+        : Number(
+          formData.receivedQuantity || 0
+        );
+
 
   const rejectedQuantity = Number(
     formData.rejectedQuantity || 0
@@ -137,8 +189,16 @@ function ReceivingPage({
         setFormData((current) => ({
           ...current,
           productSku: value,
+          expectedQuantity: "",
+          receivedQuantity: "",
+          expectedPalletQuantity: "",
+          expectedNumberOfPallets: "",
+          receivedPalletQuantity: "",
+          receivedNumberOfPallets: "",
+          expectedCases: "",
+          receivedCases: "",
+          rejectedQuantity: "0",
         }));
-
         setErrors((current) => ({
           ...current,
           productSku: "",
@@ -167,6 +227,26 @@ function ReceivingPage({
 
         setErrors((current) => ({
           ...current,
+          receivedQuantity: "",
+          form: "",
+        }));
+        break;
+
+      case "expectedPalletQuantity":
+      case "expectedNumberOfPallets":
+      case "receivedPalletQuantity":
+      case "receivedNumberOfPallets":
+      case "expectedCases":
+      case "receivedCases":
+        setFormData((current) => ({
+          ...current,
+          [name]: value,
+        }));
+
+        setErrors((current) => ({
+          ...current,
+          [name]: "",
+          expectedQuantity: "",
           receivedQuantity: "",
           form: "",
         }));
@@ -226,22 +306,86 @@ function ReceivingPage({
         "Select a product.";
     }
 
-    if (
-      formData.expectedQuantity === "" ||
-      !Number.isInteger(expectedQuantity) ||
-      expectedQuantity <= 0
-    ) {
-      nextErrors.expectedQuantity =
-        "Expected quantity must be a whole number greater than zero.";
-    }
+    if (usesPalletQuantities) {
+      if (
+        formData.expectedPalletQuantity === "" ||
+        !Number.isInteger(
+          expectedPalletQuantity
+        ) ||
+        expectedPalletQuantity <= 0
+      ) {
+        nextErrors.expectedPalletQuantity =
+          "Expected pallet quantity must be a whole number greater than zero.";
+      }
 
-    if (
-      formData.receivedQuantity === "" ||
-      !Number.isInteger(receivedQuantity) ||
-      receivedQuantity <= 0
-    ) {
-      nextErrors.receivedQuantity =
-        "Received quantity must be a whole number greater than zero.";
+      if (
+        formData.expectedNumberOfPallets === "" ||
+        !Number.isInteger(
+          expectedNumberOfPallets
+        ) ||
+        expectedNumberOfPallets <= 0
+      ) {
+        nextErrors.expectedNumberOfPallets =
+          "Expected number of pallets must be a whole number greater than zero.";
+      }
+
+      if (
+        formData.receivedPalletQuantity === "" ||
+        !Number.isInteger(
+          receivedPalletQuantity
+        ) ||
+        receivedPalletQuantity <= 0
+      ) {
+        nextErrors.receivedPalletQuantity =
+          "Received pallet quantity must be a whole number greater than zero.";
+      }
+
+      if (
+        formData.receivedNumberOfPallets === "" ||
+        !Number.isInteger(
+          receivedNumberOfPallets
+        ) ||
+        receivedNumberOfPallets <= 0
+      ) {
+        nextErrors.receivedNumberOfPallets =
+          "Received number of pallets must be a whole number greater than zero.";
+      }
+    } else if (usesCaseQuantities) {
+      if (
+        formData.expectedCases === "" ||
+        !Number.isInteger(expectedCases) ||
+        expectedCases <= 0
+      ) {
+        nextErrors.expectedCases =
+          "Expected cases must be a whole number greater than zero.";
+      }
+
+      if (
+        formData.receivedCases === "" ||
+        !Number.isInteger(receivedCases) ||
+        receivedCases <= 0
+      ) {
+        nextErrors.receivedCases =
+          "Received cases must be a whole number greater than zero.";
+      }
+    } else {
+      if (
+        formData.expectedQuantity === "" ||
+        !Number.isInteger(expectedQuantity) ||
+        expectedQuantity <= 0
+      ) {
+        nextErrors.expectedQuantity =
+          "Expected quantity must be a whole number greater than zero.";
+      }
+
+      if (
+        formData.receivedQuantity === "" ||
+        !Number.isInteger(receivedQuantity) ||
+        receivedQuantity <= 0
+      ) {
+        nextErrors.receivedQuantity =
+          "Received quantity must be a whole number greater than zero.";
+      }
     }
 
     if (
@@ -327,7 +471,7 @@ function ReceivingPage({
       receivingArea: formData.receivingArea,
       status:
         deliveryVariance === 0 &&
-        rejectedQuantity === 0
+          rejectedQuantity === 0
           ? "Awaiting putaway"
           : "Variance recorded",
     };
@@ -579,59 +723,274 @@ function ReceivingPage({
                 )}
               </div>
 
-              <div className="form-field">
-                <label htmlFor="expectedQuantity">
-                  Expected quantity
-                </label>
+              {usesPalletQuantities ? (
+                <>
+                  <div className="form-field quantity-section-heading">
+                    <strong>Expected quantity</strong>
+                  </div>
 
-                <input
-                  id="expectedQuantity"
-                  name="expectedQuantity"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={formData.expectedQuantity}
-                  placeholder="0"
-                  disabled={submitting}
-                  aria-invalid={Boolean(
-                    errors.expectedQuantity
-                  )}
-                  onChange={handleChange}
-                />
+                  <div className="form-field">
+                    <label htmlFor="expectedPalletQuantity">
+                      Pallet quantity
+                    </label>
 
-                {errors.expectedQuantity && (
-                  <p className="field-error">
-                    {errors.expectedQuantity}
-                  </p>
-                )}
-              </div>
+                    <input
+                      id="expectedPalletQuantity"
+                      name="expectedPalletQuantity"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={
+                        formData.expectedPalletQuantity
+                      }
+                      placeholder="Units per pallet"
+                      disabled={submitting}
+                      aria-invalid={Boolean(
+                        errors.expectedPalletQuantity
+                      )}
+                      onChange={handleChange}
+                    />
 
-              <div className="form-field">
-                <label htmlFor="receivedQuantity">
-                  Received quantity
-                </label>
+                    {errors.expectedPalletQuantity && (
+                      <p className="field-error">
+                        {errors.expectedPalletQuantity}
+                      </p>
+                    )}
+                  </div>
 
-                <input
-                  id="receivedQuantity"
-                  name="receivedQuantity"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={formData.receivedQuantity}
-                  placeholder="0"
-                  disabled={submitting}
-                  aria-invalid={Boolean(
-                    errors.receivedQuantity
-                  )}
-                  onChange={handleChange}
-                />
+                  <div className="form-field">
+                    <label htmlFor="expectedNumberOfPallets">
+                      Number of pallets
+                    </label>
 
-                {errors.receivedQuantity && (
-                  <p className="field-error">
-                    {errors.receivedQuantity}
-                  </p>
-                )}
-              </div>
+                    <input
+                      id="expectedNumberOfPallets"
+                      name="expectedNumberOfPallets"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={
+                        formData.expectedNumberOfPallets
+                      }
+                      placeholder="0"
+                      disabled={submitting}
+                      aria-invalid={Boolean(
+                        errors.expectedNumberOfPallets
+                      )}
+                      onChange={handleChange}
+                    />
+
+                    {errors.expectedNumberOfPallets && (
+                      <p className="field-error">
+                        {errors.expectedNumberOfPallets}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="form-field">
+                    <label htmlFor="expectedTotalQuantity">
+                      Total quantity
+                    </label>
+
+                    <input
+                      id="expectedTotalQuantity"
+                      type="number"
+                      value={expectedQuantity}
+                      readOnly
+                      aria-readonly="true"
+                    />
+                  </div>
+
+                  <div className="form-field quantity-section-heading">
+                    <strong>Received quantity</strong>
+                  </div>
+
+                  <div className="form-field">
+                    <label htmlFor="receivedPalletQuantity">
+                      Pallet quantity
+                    </label>
+
+                    <input
+                      id="receivedPalletQuantity"
+                      name="receivedPalletQuantity"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={
+                        formData.receivedPalletQuantity
+                      }
+                      placeholder="Units per pallet"
+                      disabled={submitting}
+                      aria-invalid={Boolean(
+                        errors.receivedPalletQuantity
+                      )}
+                      onChange={handleChange}
+                    />
+
+                    {errors.receivedPalletQuantity && (
+                      <p className="field-error">
+                        {errors.receivedPalletQuantity}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="form-field">
+                    <label htmlFor="receivedNumberOfPallets">
+                      Number of pallets
+                    </label>
+
+                    <input
+                      id="receivedNumberOfPallets"
+                      name="receivedNumberOfPallets"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={
+                        formData.receivedNumberOfPallets
+                      }
+                      placeholder="0"
+                      disabled={submitting}
+                      aria-invalid={Boolean(
+                        errors.receivedNumberOfPallets
+                      )}
+                      onChange={handleChange}
+                    />
+
+                    {errors.receivedNumberOfPallets && (
+                      <p className="field-error">
+                        {errors.receivedNumberOfPallets}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="form-field">
+                    <label htmlFor="receivedTotalQuantity">
+                      Total quantity
+                    </label>
+
+                    <input
+                      id="receivedTotalQuantity"
+                      type="number"
+                      value={receivedQuantity}
+                      readOnly
+                      aria-readonly="true"
+                    />
+                  </div>
+                </>
+              ) : usesCaseQuantities ? (
+                <>
+                  <div className="form-field">
+                    <label htmlFor="expectedCases">
+                      Expected cases
+                    </label>
+
+                    <input
+                      id="expectedCases"
+                      name="expectedCases"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={formData.expectedCases}
+                      placeholder="0"
+                      disabled={submitting}
+                      aria-invalid={Boolean(
+                        errors.expectedCases
+                      )}
+                      onChange={handleChange}
+                    />
+
+                    {errors.expectedCases && (
+                      <p className="field-error">
+                        {errors.expectedCases}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="form-field">
+                    <label htmlFor="receivedCases">
+                      Received cases
+                    </label>
+
+                    <input
+                      id="receivedCases"
+                      name="receivedCases"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={formData.receivedCases}
+                      placeholder="0"
+                      disabled={submitting}
+                      aria-invalid={Boolean(
+                        errors.receivedCases
+                      )}
+                      onChange={handleChange}
+                    />
+
+                    {errors.receivedCases && (
+                      <p className="field-error">
+                        {errors.receivedCases}
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="form-field">
+                    <label htmlFor="expectedQuantity">
+                      Expected quantity
+                    </label>
+
+                    <input
+                      id="expectedQuantity"
+                      name="expectedQuantity"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={formData.expectedQuantity}
+                      placeholder="0"
+                      disabled={submitting}
+                      aria-invalid={Boolean(
+                        errors.expectedQuantity
+                      )}
+                      onChange={handleChange}
+                    />
+
+                    {errors.expectedQuantity && (
+                      <p className="field-error">
+                        {errors.expectedQuantity}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="form-field">
+                    <label htmlFor="receivedQuantity">
+                      Received quantity
+                    </label>
+
+                    <input
+                      id="receivedQuantity"
+                      name="receivedQuantity"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={formData.receivedQuantity}
+                      placeholder="0"
+                      disabled={submitting}
+                      aria-invalid={Boolean(
+                        errors.receivedQuantity
+                      )}
+                      onChange={handleChange}
+                    />
+
+                    {errors.receivedQuantity && (
+                      <p className="field-error">
+                        {errors.receivedQuantity}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
 
               <div className="form-field">
                 <label htmlFor="rejectedQuantity">
@@ -879,12 +1238,11 @@ function ReceivingPage({
 
                 <div className="receipt-status-column">
                   <span
-                    className={`receipt-status ${
-                      receipt.status ===
+                    className={`receipt-status ${receipt.status ===
                       "Variance recorded"
-                        ? "receipt-status-warning"
-                        : "receipt-status-success"
-                    }`}
+                      ? "receipt-status-warning"
+                      : "receipt-status-success"
+                      }`}
                   >
                     {receipt.status}
                   </span>

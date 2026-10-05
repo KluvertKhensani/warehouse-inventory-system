@@ -4315,3 +4315,25 @@ textarea:focus-visible {
     max-height: 125px;
   }
 }
+
+/* Receiving pack quantities */
+
+.quantity-section-heading {
+  grid-column: 1 / -1;
+  padding: 10px 12px;
+  border-left: 3px solid #0072bc;
+  border-radius: 0 10px 10px 0;
+  background: #eff6ff;
+}
+
+.quantity-section-heading strong {
+  color: #18354f;
+  font-size: 0.82rem;
+}
+
+.form-field input[readonly] {
+  color: #0f172a;
+  background: #f1f5f9;
+  cursor: default;
+  font-weight: 700;
+}
