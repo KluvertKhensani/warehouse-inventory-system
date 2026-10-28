@@ -5,9 +5,11 @@ import {
   ClipboardList,
   LoaderCircle,
   PackageCheck,
+  ScanLine,
   Search,
   Truck,
 } from "lucide-react";
+import BarcodeScanner from "../components/BarcodeScanner";
 import {
   receivingAreaOptions,
   supplierOptions,
@@ -40,8 +42,14 @@ function ReceivingPage({
   );
 
   const [errors, setErrors] = useState({});
-  const [searchQuery, setSearchQuery] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] =
+    useState("");
+  const [submitting, setSubmitting] =
+    useState(false);
+  const [productScannerOpen, setProductScannerOpen] =
+    useState(false);
+  const [productScanFeedback, setProductScanFeedback] =
+    useState(null);
 
   const selectedProduct = products.find(
     (product) =>
@@ -142,6 +150,37 @@ function ReceivingPage({
     });
   }, [receipts, searchQuery]);
 
+  function selectProduct(productSku) {
+    setFormData((current) => ({
+      ...current,
+      productSku,
+      expectedQuantity: "",
+      receivedQuantity: "",
+      expectedPalletQuantity: "",
+      expectedNumberOfPallets: "",
+      receivedPalletQuantity: "",
+      receivedNumberOfPallets: "",
+      expectedCases: "",
+      receivedCases: "",
+      rejectedQuantity: "0",
+    }));
+
+    setErrors((current) => ({
+      ...current,
+      productSku: "",
+      expectedQuantity: "",
+      receivedQuantity: "",
+      expectedPalletQuantity: "",
+      expectedNumberOfPallets: "",
+      receivedPalletQuantity: "",
+      receivedNumberOfPallets: "",
+      expectedCases: "",
+      receivedCases: "",
+      rejectedQuantity: "",
+      form: "",
+    }));
+  }
+
   function handleChange(event) {
     const { name, value } = event.target;
 
@@ -186,24 +225,8 @@ function ReceivingPage({
         break;
 
       case "productSku":
-        setFormData((current) => ({
-          ...current,
-          productSku: value,
-          expectedQuantity: "",
-          receivedQuantity: "",
-          expectedPalletQuantity: "",
-          expectedNumberOfPallets: "",
-          receivedPalletQuantity: "",
-          receivedNumberOfPallets: "",
-          expectedCases: "",
-          receivedCases: "",
-          rejectedQuantity: "0",
-        }));
-        setErrors((current) => ({
-          ...current,
-          productSku: "",
-          form: "",
-        }));
+        selectProduct(value);
+        setProductScanFeedback(null);
         break;
 
       case "expectedQuantity":
@@ -281,6 +304,71 @@ function ReceivingPage({
       default:
         break;
     }
+  }
+
+  function handleProductScan(scanResult) {
+    const normalizedScanValue =
+      String(
+        scanResult?.normalizedValue || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const scannedProduct = products.find(
+      (product) =>
+        String(product.barcode || "")
+          .trim()
+          .toUpperCase() ===
+        normalizedScanValue
+    );
+
+    if (!scannedProduct) {
+      setProductScannerOpen(false);
+
+      setProductScanFeedback({
+        type: "error",
+        message:
+          "The scanned product is not active or does not exist.",
+      });
+
+      setErrors((current) => ({
+        ...current,
+        productSku:
+          "The scanned product is unavailable.",
+        form: "",
+      }));
+
+      return;
+    }
+
+    if (!scannedProduct.isActive) {
+      setProductScannerOpen(false);
+
+      setProductScanFeedback({
+        type: "error",
+        message:
+          "The scanned product is inactive and cannot be received.",
+      });
+
+      setErrors((current) => ({
+        ...current,
+        productSku:
+          "The scanned product is inactive.",
+        form: "",
+      }));
+
+      return;
+    }
+
+    selectProduct(scannedProduct.sku);
+    setProductScannerOpen(false);
+
+    setProductScanFeedback({
+      type: "success",
+      message:
+        `Scanned ${scannedProduct.sku} | ` +
+        scannedProduct.name,
+    });
   }
 
   function validateForm() {
@@ -496,6 +584,7 @@ function ReceivingPage({
 
       setFormData(emptyReceiptForm);
       setErrors({});
+      setProductScanFeedback(null);
     } catch (error) {
       const errorMessage =
         error instanceof Error
@@ -687,10 +776,33 @@ function ReceivingPage({
                 )}
               </div>
 
-              <div className="form-field">
-                <label htmlFor="productSku">
-                  Product
-                </label>
+              <div className="form-field form-field-full">
+                <div className="receiving-product-field-header">
+                  <label htmlFor="productSku">
+                    Product
+                  </label>
+
+                  <button
+                    type="button"
+                    className="secondary-button receiving-scan-button"
+                    disabled={submitting}
+                    onClick={() => {
+                      setProductScanFeedback(null);
+                      setErrors((current) => ({
+                        ...current,
+                        productSku: "",
+                        form: "",
+                      }));
+                      setProductScannerOpen(true);
+                    }}
+                  >
+                    <ScanLine
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    Scan product
+                  </button>
+                </div>
 
                 <select
                   id="productSku"
@@ -715,6 +827,29 @@ function ReceivingPage({
                     </option>
                   ))}
                 </select>
+
+                {productScanFeedback && (
+                  <div
+                    className={`receiving-scan-feedback receiving-scan-feedback-${productScanFeedback.type}`}
+                    role={
+                      productScanFeedback.type === "error"
+                        ? "alert"
+                        : "status"
+                    }
+                  >
+                    {productScanFeedback.type ===
+                      "success" && (
+                        <CheckCircle2
+                          size={17}
+                          aria-hidden="true"
+                        />
+                      )}
+
+                    <span>
+                      {productScanFeedback.message}
+                    </span>
+                  </div>
+                )}
 
                 {errors.productSku && (
                   <p className="field-error">
@@ -1275,7 +1410,19 @@ function ReceivingPage({
             )}
           </div>
         )}
-      </section>
+           </section>
+
+      {productScannerOpen && (
+        <BarcodeScanner
+          title="Scan product"
+          instructions="Scan the product barcode. Product codes begin with PRD."
+          expectedEntityType="product"
+          onScan={handleProductScan}
+          onClose={() =>
+            setProductScannerOpen(false)
+          }
+        />
+      )}
     </div>
   );
 }

@@ -4,6 +4,8 @@ function mapLocationRecord(location) {
   return {
     id: location.id,
     code: location.code,
+    scanCode:
+      location.scan_code || "",
     zone: location.zone,
     aisle:
       location.aisle || "Not applicable",
@@ -38,6 +40,7 @@ export async function fetchWarehouseLocations() {
       `
       id,
       code,
+      scan_code,
       zone,
       aisle,
       rack,
