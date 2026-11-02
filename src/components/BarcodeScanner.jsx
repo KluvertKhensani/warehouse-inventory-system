@@ -506,7 +506,7 @@ function BarcodeScanner({
                             id="manualBarcode"
                             type="text"
                             value={manualValue}
-                            placeholder="For example PRD:BEV-1001"
+                            placeholder="For example 6001000000012 or PRD:BEV-1001"
                             autoComplete="off"
                             autoCapitalize="characters"
                             onChange={(event) => {

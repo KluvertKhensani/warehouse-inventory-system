@@ -40,14 +40,13 @@ export function parseScanValue(value) {
 
   if (separatorPosition <= 0) {
     return {
-      success: false,
+      success: true,
       rawValue,
       normalizedValue,
       entityType: null,
       prefix: null,
-      value: null,
-      message:
-        "The scanned barcode does not contain a supported type prefix.",
+      value: normalizedValue,
+      message: "",
     };
   }
 
@@ -114,6 +113,7 @@ export function validateScanType(
   }
 
   if (
+    scanResult.entityType &&
     scanResult.entityType !==
     expectedEntityType
   ) {
@@ -125,6 +125,7 @@ export function validateScanType(
       ),
     };
   }
+
 
   return {
     success: true,
