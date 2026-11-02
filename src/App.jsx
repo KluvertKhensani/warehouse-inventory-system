@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
 } from "react";
+import BarcodeScanner from "./components/BarcodeScanner";
 import Header from "./components/Header";
 import ProductFormModal from "./components/ProductFormModal";
 import Sidebar from "./components/Sidebar";
@@ -73,6 +74,16 @@ function App({
     productModalOpen,
     setProductModalOpen,
   ] = useState(false);
+
+  const [
+    globalScannerOpen,
+    setGlobalScannerOpen,
+  ] = useState(false);
+
+  const [
+    scannedProductResult,
+    setScannedProductResult,
+  ] = useState(null);
 
   const [
     notification,
@@ -155,29 +166,29 @@ function App({
   ] = useState(true);
 
   const [
-  putawayTasksError,
-  setPutawayTasksError,
-] = useState("");
+    putawayTasksError,
+    setPutawayTasksError,
+  ] = useState("");
 
-const [
-  putawayOperators,
-  setPutawayOperators,
-] = useState([]);
+  const [
+    putawayOperators,
+    setPutawayOperators,
+  ] = useState([]);
 
-const [
-  putawayOperatorsLoading,
-  setPutawayOperatorsLoading,
-] = useState(true);
+  const [
+    putawayOperatorsLoading,
+    setPutawayOperatorsLoading,
+  ] = useState(true);
 
-const [
-  putawayOperatorsError,
-  setPutawayOperatorsError,
-] = useState("");
+  const [
+    putawayOperatorsError,
+    setPutawayOperatorsError,
+  ] = useState("");
 
-const [
-  stockCounts,
-  setStockCounts,
-] = useState(initialStockCounts);
+  const [
+    stockCounts,
+    setStockCounts,
+  ] = useState(initialStockCounts);
 
   const [
     stockCountsLoading,
@@ -280,21 +291,21 @@ const [
         "Unable to load stock transfers from Supabase."
       ),
       loadData(
-  fetchPutawayTasks,
-  setPutawayTasks,
-  setPutawayTasksLoading,
-  setPutawayTasksError,
-  "Unable to load putaway tasks from Supabase."
-),
-loadData(
-  fetchPutawayOperators,
-  setPutawayOperators,
-  setPutawayOperatorsLoading,
-  setPutawayOperatorsError,
-  "Unable to load putaway operators from Supabase."
-),
-loadData(
-  fetchStockCounts,
+        fetchPutawayTasks,
+        setPutawayTasks,
+        setPutawayTasksLoading,
+        setPutawayTasksError,
+        "Unable to load putaway tasks from Supabase."
+      ),
+      loadData(
+        fetchPutawayOperators,
+        setPutawayOperators,
+        setPutawayOperatorsLoading,
+        setPutawayOperatorsError,
+        "Unable to load putaway operators from Supabase."
+      ),
+      loadData(
+        fetchStockCounts,
         setStockCounts,
         setStockCountsLoading,
         setStockCountsError,
@@ -376,31 +387,31 @@ loadData(
     return databaseTransfers;
   }
 
-async function refreshPutawayTasks() {
-  const databasePutawayTasks =
-    await fetchPutawayTasks();
+  async function refreshPutawayTasks() {
+    const databasePutawayTasks =
+      await fetchPutawayTasks();
 
-  setPutawayTasks(
-    databasePutawayTasks
-  );
-  setPutawayTasksError("");
+    setPutawayTasks(
+      databasePutawayTasks
+    );
+    setPutawayTasksError("");
 
-  return databasePutawayTasks;
-}
+    return databasePutawayTasks;
+  }
 
-async function refreshPutawayOperators() {
-  const databasePutawayOperators =
-    await fetchPutawayOperators();
+  async function refreshPutawayOperators() {
+    const databasePutawayOperators =
+      await fetchPutawayOperators();
 
-  setPutawayOperators(
-    databasePutawayOperators
-  );
-  setPutawayOperatorsError("");
+    setPutawayOperators(
+      databasePutawayOperators
+    );
+    setPutawayOperatorsError("");
 
-  return databasePutawayOperators;
-}
+    return databasePutawayOperators;
+  }
 
-async function refreshStockCounts() {
+  async function refreshStockCounts() {
     const databaseStockCounts =
       await fetchStockCounts();
 
@@ -448,9 +459,126 @@ async function refreshStockCounts() {
     setMobileMenuOpen(false);
   }
 
+  function normalizeProductLookupValue(
+    value
+  ) {
+    return String(value || "")
+      .trim()
+      .toUpperCase();
+  }
+
+  function findProductFromScan(
+    scanResult
+  ) {
+    const normalizedValue =
+      normalizeProductLookupValue(
+        scanResult?.normalizedValue
+      );
+
+    const scanIdentifier =
+      normalizeProductLookupValue(
+        scanResult?.value
+      );
+
+    const matches = products.filter(
+      (product) => {
+        const barcode =
+          normalizeProductLookupValue(
+            product.barcode
+          );
+
+        const sku =
+          normalizeProductLookupValue(
+            product.sku
+          );
+
+        return (
+          barcode === normalizedValue ||
+          barcode === scanIdentifier ||
+          sku === normalizedValue ||
+          sku === scanIdentifier
+        );
+      }
+    );
+
+    if (matches.length !== 1) {
+      return {
+        product: null,
+        ambiguous: matches.length > 1,
+      };
+    }
+
+    return {
+      product: matches[0],
+      ambiguous: false,
+    };
+  }
+
   function handleOpenScanner() {
+    setScannedProductResult(null);
+    setGlobalScannerOpen(true);
+  }
+
+  function handleCloseScanner() {
+    setGlobalScannerOpen(false);
+  }
+
+  function handleGlobalProductScan(
+    scanResult
+  ) {
+    const lookupResult =
+      findProductFromScan(
+        scanResult
+      );
+
+    if (lookupResult.ambiguous) {
+      setScannedProductResult({
+        type: "error",
+        product: null,
+        message:
+          "More than one product uses this barcode. Correct the duplicate product barcodes before continuing.",
+      });
+
+      setGlobalScannerOpen(false);
+
+      showNotification(
+        "The barcode matches more than one product."
+      );
+
+      return;
+    }
+
+    if (!lookupResult.product) {
+      setScannedProductResult({
+        type: "error",
+        product: null,
+        message:
+          "No active product matches the scanned barcode or SKU.",
+      });
+
+      setGlobalScannerOpen(false);
+
+      showNotification(
+        "No product matched the scanned barcode."
+      );
+
+      return;
+    }
+
+    const product =
+      lookupResult.product;
+
+    setScannedProductResult({
+      type: "success",
+      product,
+      message:
+        `${product.sku} | ${product.name} found`,
+    });
+
+    setGlobalScannerOpen(false);
+
     showNotification(
-      "Barcode scanner functionality will be added in the scanning phase."
+      `${product.sku} | ${product.name} found`
     );
   }
 
@@ -493,7 +621,7 @@ async function refreshStockCounts() {
       setProductsError(message);
 
       showNotification(
-        `Product creation failed: ${message}`
+        `Product creation failed: ${message} `
       );
 
       return {
@@ -547,7 +675,7 @@ async function refreshStockCounts() {
       setReceiptsError(message);
 
       showNotification(
-        `Goods receipt failed: ${message}`
+        `Goods receipt failed: ${message} `
       );
 
       return {
@@ -600,7 +728,7 @@ async function refreshStockCounts() {
       setTransfersError(message);
 
       showNotification(
-        `Stock transfer failed: ${message}`
+        `Stock transfer failed: ${message} `
       );
 
       return {
@@ -655,7 +783,7 @@ async function refreshStockCounts() {
       setPutawayTasksError(message);
 
       showNotification(
-        `Putaway task creation failed: ${message}`
+        `Putaway task creation failed: ${message} `
       );
 
       return {
@@ -668,176 +796,176 @@ async function refreshStockCounts() {
   }
 
   async function handleAssignPutawayTask(
-  assignmentData
-) {
-  try {
-    setPutawayTasksLoading(true);
-    setPutawayTasksError("");
+    assignmentData
+  ) {
+    try {
+      setPutawayTasksLoading(true);
+      setPutawayTasksError("");
 
-    const result =
-      await assignPutawayTask(
-        assignmentData
+      const result =
+        await assignPutawayTask(
+          assignmentData
+        );
+
+      await Promise.all([
+        refreshPutawayTasks(),
+        refreshPutawayOperators(),
+        refreshAuditEvents(),
+      ]);
+
+      showNotification(
+        `${result.taskNumber} was assigned to ${result.assignedProfileName}.`
       );
 
-    await Promise.all([
-      refreshPutawayTasks(),
-      refreshPutawayOperators(),
-      refreshAuditEvents(),
-    ]);
+      return {
+        success: true,
+        message:
+          "The putaway task was assigned successfully.",
+        taskNumber:
+          result.taskNumber,
+        assignedProfileId:
+          result.assignedProfileId,
+        assignedProfileName:
+          result.assignedProfileName,
+        assignedProfileRole:
+          result.assignedProfileRole,
+        status:
+          result.status,
+      };
+    } catch (error) {
+      const message =
+        getErrorMessage(
+          error,
+          "Unable to assign the putaway task."
+        );
 
-    showNotification(
-      `${result.taskNumber} was assigned to ${result.assignedProfileName}.`
-    );
+      setPutawayTasksError(message);
 
-    return {
-      success: true,
-      message:
-        "The putaway task was assigned successfully.",
-      taskNumber:
-        result.taskNumber,
-      assignedProfileId:
-        result.assignedProfileId,
-      assignedProfileName:
-        result.assignedProfileName,
-      assignedProfileRole:
-        result.assignedProfileRole,
-      status:
-        result.status,
-    };
-  } catch (error) {
-    const message =
-      getErrorMessage(
-        error,
-        "Unable to assign the putaway task."
+      showNotification(
+        `Putaway assignment failed: ${message} `
       );
 
-    setPutawayTasksError(message);
-
-    showNotification(
-      `Putaway assignment failed: ${message}`
-    );
-
-    return {
-      success: false,
-      message,
-    };
-  } finally {
-    setPutawayTasksLoading(false);
+      return {
+        success: false,
+        message,
+      };
+    } finally {
+      setPutawayTasksLoading(false);
+    }
   }
-}
 
-async function handleStartPutawayTask(
-  taskData
-) {
-  try {
-    setPutawayTasksLoading(true);
-    setPutawayTasksError("");
+  async function handleStartPutawayTask(
+    taskData
+  ) {
+    try {
+      setPutawayTasksLoading(true);
+      setPutawayTasksError("");
 
-    const result =
-      await startPutawayTask(
-        taskData
+      const result =
+        await startPutawayTask(
+          taskData
+        );
+
+      await Promise.all([
+        refreshPutawayTasks(),
+        refreshAuditEvents(),
+      ]);
+
+      showNotification(
+        `${result.taskNumber} is now in progress.`
       );
 
-    await Promise.all([
-      refreshPutawayTasks(),
-      refreshAuditEvents(),
-    ]);
+      return {
+        success: true,
+        message:
+          "The putaway task was started successfully.",
+        taskNumber:
+          result.taskNumber,
+        assignedProfileId:
+          result.assignedProfileId,
+        assignedProfileName:
+          result.assignedProfileName,
+        status:
+          result.status,
+      };
+    } catch (error) {
+      const message =
+        getErrorMessage(
+          error,
+          "Unable to start the putaway task."
+        );
 
-    showNotification(
-      `${result.taskNumber} is now in progress.`
-    );
+      setPutawayTasksError(message);
 
-    return {
-      success: true,
-      message:
-        "The putaway task was started successfully.",
-      taskNumber:
-        result.taskNumber,
-      assignedProfileId:
-        result.assignedProfileId,
-      assignedProfileName:
-        result.assignedProfileName,
-      status:
-        result.status,
-    };
-  } catch (error) {
-    const message =
-      getErrorMessage(
-        error,
-        "Unable to start the putaway task."
+      showNotification(
+        `Putaway task start failed: ${message} `
       );
 
-    setPutawayTasksError(message);
-
-    showNotification(
-      `Putaway task start failed: ${message}`
-    );
-
-    return {
-      success: false,
-      message,
-    };
-  } finally {
-    setPutawayTasksLoading(false);
+      return {
+        success: false,
+        message,
+      };
+    } finally {
+      setPutawayTasksLoading(false);
+    }
   }
-}
 
-async function handleCancelPutawayTask(
-  cancellationData
-) {
-  try {
-    setPutawayTasksLoading(true);
-    setPutawayTasksError("");
+  async function handleCancelPutawayTask(
+    cancellationData
+  ) {
+    try {
+      setPutawayTasksLoading(true);
+      setPutawayTasksError("");
 
-    const result =
-      await cancelPutawayTask(
-        cancellationData
+      const result =
+        await cancelPutawayTask(
+          cancellationData
+        );
+
+      await Promise.all([
+        refreshReceipts(),
+        refreshPutawayTasks(),
+        refreshAuditEvents(),
+      ]);
+
+      showNotification(
+        `${result.taskNumber} was cancelled successfully.`
       );
 
-    await Promise.all([
-      refreshReceipts(),
-      refreshPutawayTasks(),
-      refreshAuditEvents(),
-    ]);
+      return {
+        success: true,
+        message:
+          "The putaway task was cancelled successfully.",
+        taskNumber:
+          result.taskNumber,
+        previousStatus:
+          result.previousStatus,
+        status:
+          result.status,
+        cancellationReason:
+          result.cancellationReason,
+      };
+    } catch (error) {
+      const message =
+        getErrorMessage(
+          error,
+          "Unable to cancel the putaway task."
+        );
 
-    showNotification(
-      `${result.taskNumber} was cancelled successfully.`
-    );
+      setPutawayTasksError(message);
 
-    return {
-      success: true,
-      message:
-        "The putaway task was cancelled successfully.",
-      taskNumber:
-        result.taskNumber,
-      previousStatus:
-        result.previousStatus,
-      status:
-        result.status,
-      cancellationReason:
-        result.cancellationReason,
-    };
-  } catch (error) {
-    const message =
-      getErrorMessage(
-        error,
-        "Unable to cancel the putaway task."
+      showNotification(
+        `Putaway cancellation failed: ${message} `
       );
 
-    setPutawayTasksError(message);
-
-    showNotification(
-      `Putaway cancellation failed: ${message}`
-    );
-
-    return {
-      success: false,
-      message,
-    };
-  } finally {
-    setPutawayTasksLoading(false);
+      return {
+        success: false,
+        message,
+      };
+    } finally {
+      setPutawayTasksLoading(false);
+    }
   }
-}
 
   async function handleCompletePutawayTask(
     completionData
@@ -887,7 +1015,7 @@ async function handleCancelPutawayTask(
       setPutawayTasksError(message);
 
       showNotification(
-        `Putaway completion failed: ${message}`
+        `Putaway completion failed: ${message} `
       );
 
       return {
@@ -942,7 +1070,7 @@ async function handleCancelPutawayTask(
       setStockCountsError(message);
 
       showNotification(
-        `Stock count failed: ${message}`
+        `Stock count failed: ${message} `
       );
 
       return {
@@ -1024,38 +1152,38 @@ async function handleCancelPutawayTask(
         );
 
       case "putaway":
-      return (
-        <PutawayPage
-          authUser={authUser}
-          authProfile={authProfile}
-          receipts={receipts}
-          locations={locations}
-          putawayTasks={
-            putawayTasks
-          }
-          putawayOperators={
-            putawayOperators
-          }
-          putawayOperatorsLoading={
-            putawayOperatorsLoading
-          }
-          onCreatePutawayTask={
-            handleCreatePutawayTask
-          }
-          onAssignPutawayTask={
-            handleAssignPutawayTask
-          }
-          onStartPutawayTask={
-            handleStartPutawayTask
-          }
-          onCancelPutawayTask={
-            handleCancelPutawayTask
-          }
-          onCompletePutawayTask={
-            handleCompletePutawayTask
-          }
-        />
-      );
+        return (
+          <PutawayPage
+            authUser={authUser}
+            authProfile={authProfile}
+            receipts={receipts}
+            locations={locations}
+            putawayTasks={
+              putawayTasks
+            }
+            putawayOperators={
+              putawayOperators
+            }
+            putawayOperatorsLoading={
+              putawayOperatorsLoading
+            }
+            onCreatePutawayTask={
+              handleCreatePutawayTask
+            }
+            onAssignPutawayTask={
+              handleAssignPutawayTask
+            }
+            onStartPutawayTask={
+              handleStartPutawayTask
+            }
+            onCancelPutawayTask={
+              handleCancelPutawayTask
+            }
+            onCompletePutawayTask={
+              handleCompletePutawayTask
+            }
+          />
+        );
 
       case "movements":
         return (
@@ -1146,6 +1274,99 @@ async function handleCancelPutawayTask(
         />
 
         <div className="application-content">
+          {scannedProductResult && (
+            <section
+              className={`global-scan-result global-scan-result-${scannedProductResult.type}`}
+              role={
+                scannedProductResult.type ===
+                  "error"
+                  ? "alert"
+                  : "status"
+              }
+            >
+              <div className="global-scan-result-content">
+                <strong>
+                  {scannedProductResult.type ===
+                    "success"
+                    ? "Scanned product"
+                    : "Barcode not resolved"}
+                </strong>
+
+                <span>
+                  {scannedProductResult.message}
+                </span>
+
+                {scannedProductResult.product && (
+                  <div className="global-scan-product-details">
+                    <span>
+                      SKU:{" "}
+                      {scannedProductResult.product.sku}
+                    </span>
+
+                    <span>
+                      Location:{" "}
+                      {scannedProductResult.product.location ||
+                        "Unassigned"}
+                    </span>
+
+                    <span>
+                      On hand:{" "}
+                      {Number(
+                        scannedProductResult.product.quantity ||
+                        0
+                      ).toLocaleString()}
+                    </span>
+
+                    <span>
+                      Available:{" "}
+                      {Number(
+                        scannedProductResult.product.available ||
+                        0
+                      ).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="global-scan-result-actions">
+                {scannedProductResult.product && (
+                  <>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => {
+                        handleNavigate("inventory");
+                        setScannedProductResult(null);
+                      }}
+                    >
+                      View inventory
+                    </button>
+
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => {
+                        handleNavigate("counts");
+                        setScannedProductResult(null);
+                      }}
+                    >
+                      Start count
+                    </button>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() =>
+                    setScannedProductResult(null)
+                  }
+                >
+                  Dismiss
+                </button>
+              </div>
+            </section>
+          )}
           {productsLoading && (
             <div
               className="database-loading-notice"
@@ -1214,50 +1435,50 @@ async function handleCancelPutawayTask(
             )}
 
           {putawayTasksLoading &&
-  activePage === "putaway" && (
-    <div
-      className="database-loading-notice"
-      role="status"
-    >
-      Loading putaway tasks from
-      Supabase...
-    </div>
-  )}
+            activePage === "putaway" && (
+              <div
+                className="database-loading-notice"
+                role="status"
+              >
+                Loading putaway tasks from
+                Supabase...
+              </div>
+            )}
 
-{putawayOperatorsLoading &&
-  activePage === "putaway" && (
-    <div
-      className="database-loading-notice"
-      role="status"
-    >
-      Loading active putaway operators
-      from Supabase...
-    </div>
-  )}
+          {putawayOperatorsLoading &&
+            activePage === "putaway" && (
+              <div
+                className="database-loading-notice"
+                role="status"
+              >
+                Loading active putaway operators
+                from Supabase...
+              </div>
+            )}
 
-        {putawayTasksError &&
-          activePage === "putaway" && (
-            <div
-              className="database-error-notice"
-              role="alert"
-            >
-              Supabase putaway operation
-              failed. Error:{" "}
-              {putawayTasksError}
-            </div>
-          )}
+          {putawayTasksError &&
+            activePage === "putaway" && (
+              <div
+                className="database-error-notice"
+                role="alert"
+              >
+                Supabase putaway operation
+                failed. Error:{" "}
+                {putawayTasksError}
+              </div>
+            )}
 
-        {putawayOperatorsError &&
-          activePage === "putaway" && (
-            <div
-              className="database-error-notice"
-              role="alert"
-            >
-              Supabase operator loading failed.
-              Error:{" "}
-              {putawayOperatorsError}
-            </div>
-          )}
+          {putawayOperatorsError &&
+            activePage === "putaway" && (
+              <div
+                className="database-error-notice"
+                role="alert"
+              >
+                Supabase operator loading failed.
+                Error:{" "}
+                {putawayOperatorsError}
+              </div>
+            )}
 
           {movementsLoading &&
             activePage === "movements" && (
@@ -1366,6 +1587,15 @@ async function handleCancelPutawayTask(
           handleCreateProduct
         }
       />
+      {globalScannerOpen && (
+        <BarcodeScanner
+          title="Scan warehouse item"
+          instructions="Scan a numeric product barcode, an internal product code, or enter the barcode manually."
+          expectedEntityType="product"
+          onScan={handleGlobalProductScan}
+          onClose={handleCloseScanner}
+        />
+      )}
     </div>
   );
 }

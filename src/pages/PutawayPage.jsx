@@ -7,11 +7,15 @@ import {
   MapPin,
   PackageCheck,
   Play,
+  ScanLine,
   Search,
   Truck,
   UserRoundCheck,
   XCircle,
 } from "lucide-react";
+import BarcodeScanner from "../components/BarcodeScanner";
+
+
 
 const emptyTaskForm = {
   receiptNumber: "",
@@ -95,6 +99,19 @@ function PutawayPage({
   const [filter, setFilter] = useState("all");
   const [creating, setCreating] = useState(false);
   const [busyAction, setBusyAction] = useState("");
+  const [scannerContext, setScannerContext] =
+    useState(null);
+
+  const [taskScanFeedback, setTaskScanFeedback] =
+    useState(null);
+
+  const [scanVerifications, setScanVerifications] =
+    useState({});
+
+  const [
+    highlightedTaskNumber,
+    setHighlightedTaskNumber,
+  ] = useState("");
 
   const currentUserId = authUser?.id || authProfile?.id || "";
   const currentUserRole = authProfile?.role?.name || "";
@@ -131,7 +148,18 @@ function PutawayPage({
           location.isActive !== false && location.status !== "Inactive";
         const restricted =
           location.isRestricted === true || location.status === "Restricted";
-        return active && !restricted && !code.startsWith("JHB-RECEIVING-");
+        const receiving =
+          code.startsWith("JHB-RECEIVING-");
+
+        const quarantine =
+          code.includes("QUARANTINE");
+
+        return (
+          active &&
+          !restricted &&
+          !receiving &&
+          !quarantine
+        );
       }),
     [locations]
   );
@@ -193,6 +221,33 @@ function PutawayPage({
     };
   }
 
+  function scanVerification(number) {
+    return {
+      productVerified: false,
+      destinationVerified: false,
+      productMessage: "",
+      destinationMessage: "",
+      ...scanVerifications[number],
+    };
+  }
+
+  function updateScanVerification(
+    number,
+    changes
+  ) {
+    setScanVerifications((current) => ({
+      ...current,
+      [number]: {
+        productVerified: false,
+        destinationVerified: false,
+        productMessage: "",
+        destinationMessage: "",
+        ...current[number],
+        ...changes,
+      },
+    }));
+  }
+
   function setLifecycleError(number, changes) {
     setLifecycleErrors((current) => ({
       ...current,
@@ -237,8 +292,13 @@ function PutawayPage({
     setLifecycleError(number, { [name]: "", form: "" });
   }
 
-  function changeCompletionForm(number, event) {
-    const { name, value } = event.target;
+  function changeCompletionForm(
+    number,
+    event
+  ) {
+    const { name, value } =
+      event.target;
+
     setCompletionForms((current) => ({
       ...current,
       [number]: {
@@ -247,7 +307,477 @@ function PutawayPage({
         [name]: value,
       },
     }));
-    setCompletionError(number, { [name]: "", form: "" });
+
+    setCompletionError(number, {
+      [name]: "",
+      form: "",
+    });
+
+    if (
+      name === "destinationLocation"
+    ) {
+      updateScanVerification(
+        number,
+        {
+          destinationVerified: false,
+          destinationMessage: value
+            ? "Destination selected manually."
+            : "",
+        }
+      );
+    }
+  }
+
+  function openTaskScanner() {
+    setTaskScanFeedback(null);
+
+    setScannerContext({
+      type: "task",
+      taskNumber: "",
+    });
+  }
+
+  function openProductScanner(task) {
+    const number = taskNumber(task);
+
+    updateScanVerification(number, {
+      productVerified: false,
+      productMessage: "",
+    });
+
+    setScannerContext({
+      type: "product",
+      taskNumber: number,
+    });
+  }
+
+  function openDestinationScanner(task) {
+    const number = taskNumber(task);
+
+    updateScanVerification(number, {
+      destinationVerified: false,
+      destinationMessage: "",
+    });
+
+    setCompletionError(number, {
+      destinationLocation: "",
+      form: "",
+    });
+
+    setScannerContext({
+      type: "destination",
+      taskNumber: number,
+    });
+  }
+
+  function closePutawayScanner() {
+    setScannerContext(null);
+  }
+
+  function handleTaskScan(
+    scanResult
+  ) {
+    const scannedTaskNumber =
+      String(
+        scanResult?.value || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const scannedTask =
+      putawayTasks.find(
+        (task) =>
+          String(
+            taskNumber(task)
+          )
+            .trim()
+            .toUpperCase() ===
+          scannedTaskNumber
+      );
+
+    if (!scannedTask) {
+      setScannerContext(null);
+
+      setTaskScanFeedback({
+        type: "error",
+        message:
+          "The scanned putaway task does not exist or is not visible to your account.",
+      });
+
+      return;
+    }
+
+    const number =
+      taskNumber(scannedTask);
+
+    setFilter("all");
+    setSearch(number);
+    setHighlightedTaskNumber(number);
+    setScannerContext(null);
+
+    if (
+      [
+        "Completed",
+        "Cancelled",
+      ].includes(
+        scannedTask.status
+      )
+    ) {
+      setTaskScanFeedback({
+        type: "error",
+        message:
+          `${number} is already ` +
+          `${String(
+            scannedTask.status
+          ).toLowerCase()}.`,
+      });
+
+      return;
+    }
+
+    setTaskScanFeedback({
+      type: "success",
+      message:
+        `Selected ${number} | ` +
+        `${scannedTask.productName ||
+        scannedTask.productSku
+        }`,
+    });
+
+    window.requestAnimationFrame(
+      () => {
+        document
+          .getElementById(
+            `putaway-task-${number}`
+          )
+          ?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+      }
+    );
+  }
+
+  function handleProductVerificationScan(
+    scanResult
+  ) {
+    const number =
+      scannerContext?.taskNumber || "";
+
+    const task = putawayTasks.find(
+      (item) =>
+        taskNumber(item) === number
+    );
+
+    if (!task) {
+      setScannerContext(null);
+
+      setTaskScanFeedback({
+        type: "error",
+        message:
+          "The putaway task could not be found.",
+      });
+
+      return;
+    }
+
+    const scannedProductSku =
+      String(
+        scanResult?.value || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const expectedProductSku =
+      String(
+        task.productSku || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      scannedProductSku !==
+      expectedProductSku
+    ) {
+      updateScanVerification(
+        number,
+        {
+          productVerified: false,
+          productMessage:
+            `Wrong product. Expected ${expectedProductSku}, ` +
+            `but scanned ${scannedProductSku}.`,
+        }
+      );
+
+      setScannerContext(null);
+      return;
+    }
+
+    updateScanVerification(
+      number,
+      {
+        productVerified: true,
+        productMessage:
+          `${task.productSku} | ` +
+          `${task.productName} verified`,
+      }
+    );
+
+    setScannerContext(null);
+  }
+
+  function handleDestinationScan(
+    scanResult
+  ) {
+    const number =
+      scannerContext?.taskNumber || "";
+
+    const task = putawayTasks.find(
+      (item) =>
+        taskNumber(item) === number
+    );
+
+    if (!task) {
+      setScannerContext(null);
+
+      setTaskScanFeedback({
+        type: "error",
+        message:
+          "The putaway task could not be found.",
+      });
+
+      return;
+    }
+
+    const normalizedScanValue =
+      String(
+        scanResult?.normalizedValue || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const location = locations.find(
+      (item) =>
+        String(item.scanCode || "")
+          .trim()
+          .toUpperCase() ===
+        normalizedScanValue
+    );
+
+    if (!location) {
+      updateScanVerification(
+        number,
+        {
+          destinationVerified: false,
+          destinationMessage:
+            "The scanned location does not exist or is inactive.",
+        }
+      );
+
+      setCompletionError(
+        number,
+        {
+          destinationLocation:
+            "The scanned location is unavailable.",
+        }
+      );
+
+      setScannerContext(null);
+      return;
+    }
+
+    const locationCode =
+      String(location.code || "")
+        .trim()
+        .toUpperCase();
+
+    const sourceLocation =
+      String(
+        task.sourceLocation || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      location.isActive === false ||
+      location.status === "Inactive"
+    ) {
+      updateScanVerification(
+        number,
+        {
+          destinationVerified: false,
+          destinationMessage:
+            "The scanned location is inactive.",
+        }
+      );
+
+      setCompletionError(
+        number,
+        {
+          destinationLocation:
+            "Inactive locations cannot receive putaway stock.",
+        }
+      );
+
+      setScannerContext(null);
+      return;
+    }
+
+    if (
+      location.isRestricted === true ||
+      location.status === "Restricted"
+    ) {
+      updateScanVerification(
+        number,
+        {
+          destinationVerified: false,
+          destinationMessage:
+            "The scanned location is restricted.",
+        }
+      );
+
+      setCompletionError(
+        number,
+        {
+          destinationLocation:
+            "Restricted locations require a controlled workflow.",
+        }
+      );
+
+      setScannerContext(null);
+      return;
+    }
+
+    if (
+      locationCode.startsWith(
+        "JHB-RECEIVING-"
+      )
+    ) {
+      updateScanVerification(
+        number,
+        {
+          destinationVerified: false,
+          destinationMessage:
+            "A receiving area cannot be used as the destination.",
+        }
+      );
+
+      setCompletionError(
+        number,
+        {
+          destinationLocation:
+            "Select a warehouse storage location.",
+        }
+      );
+
+      setScannerContext(null);
+      return;
+    }
+
+    if (
+      locationCode.includes(
+        "QUARANTINE"
+      )
+    ) {
+      updateScanVerification(
+        number,
+        {
+          destinationVerified: false,
+          destinationMessage:
+            "Quarantine requires an authorized inspection workflow.",
+        }
+      );
+
+      setCompletionError(
+        number,
+        {
+          destinationLocation:
+            "Quarantine cannot be selected through normal putaway.",
+        }
+      );
+
+      setScannerContext(null);
+      return;
+    }
+
+    if (
+      locationCode === sourceLocation
+    ) {
+      updateScanVerification(
+        number,
+        {
+          destinationVerified: false,
+          destinationMessage:
+            "The destination cannot match the source location.",
+        }
+      );
+
+      setCompletionError(
+        number,
+        {
+          destinationLocation:
+            "Choose a different destination location.",
+        }
+      );
+
+      setScannerContext(null);
+      return;
+    }
+
+    setCompletionForms((current) => ({
+      ...current,
+      [number]: {
+        ...emptyCompletionForm,
+        ...current[number],
+        destinationLocation:
+          location.code,
+      },
+    }));
+
+    setCompletionError(number, {
+      destinationLocation: "",
+      form: "",
+    });
+
+    updateScanVerification(
+      number,
+      {
+        destinationVerified: true,
+        destinationMessage:
+          `${location.code} verified`,
+      }
+    );
+
+    setScannerContext(null);
+  }
+
+  function handlePutawayScan(
+    scanResult
+  ) {
+    if (
+      scannerContext?.type === "task"
+    ) {
+      handleTaskScan(scanResult);
+      return;
+    }
+
+    if (
+      scannerContext?.type === "product"
+    ) {
+      handleProductVerificationScan(
+        scanResult
+      );
+      return;
+    }
+
+    if (
+      scannerContext?.type ===
+      "destination"
+    ) {
+      handleDestinationScan(
+        scanResult
+      );
+    }
   }
 
   async function createTask(event) {
@@ -443,6 +973,17 @@ function PutawayPage({
         delete next[number];
         return next;
       });
+      setScanVerifications((current) => {
+        const next = { ...current };
+        delete next[number];
+        return next;
+      });
+
+      if (
+        highlightedTaskNumber === number
+      ) {
+        setHighlightedTaskNumber("");
+      }
     } catch (error) {
       setCompletionError(number, {
         form:
@@ -611,19 +1152,63 @@ function PutawayPage({
         <div className="putaway-register-header">
           <div>
             <h2>Putaway task register</h2>
-            <p>Secured warehouse task lifecycle</p>
+            <p>
+              Secured warehouse task lifecycle
+            </p>
           </div>
-          <div className="putaway-search">
-            <Search size={17} />
-            <input
-              type="search"
-              value={search}
-              placeholder="Search putaway tasks"
-              aria-label="Search putaway tasks"
-              onChange={(event) => setSearch(event.target.value)}
-            />
+
+          <div className="putaway-register-actions">
+            <button
+              type="button"
+              className="secondary-button putaway-scan-task-button"
+              onClick={openTaskScanner}
+            >
+              <ScanLine
+                size={18}
+                aria-hidden="true"
+              />
+              Scan task
+            </button>
+
+            <div className="putaway-search">
+              <Search size={17} />
+
+              <input
+                type="search"
+                value={search}
+                placeholder="Search putaway tasks"
+                aria-label="Search putaway tasks"
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
+              />
+            </div>
           </div>
         </div>
+
+        {taskScanFeedback && (
+          <div
+            className={`putaway-scan-feedback putaway-scan-feedback-${taskScanFeedback.type}`}
+            role={
+              taskScanFeedback.type ===
+                "error"
+                ? "alert"
+                : "status"
+            }
+          >
+            {taskScanFeedback.type ===
+              "success" && (
+                <CheckCircle2
+                  size={17}
+                  aria-hidden="true"
+                />
+              )}
+
+            <span>
+              {taskScanFeedback.message}
+            </span>
+          </div>
+        )}
 
         <div className="putaway-filters">
           {filters.map(([id, label]) => (
@@ -650,6 +1235,8 @@ function PutawayPage({
               const number = taskNumber(task);
               const lifecycle = lifecycleForm(number, task.assignedTo || "");
               const completion = completionForm(number);
+              const verification =
+                scanVerification(number);
               const lifeErrors = lifecycleErrors[number] || {};
               const completeErrors = completionErrors[number] || {};
               const assignedUser =
@@ -666,7 +1253,11 @@ function PutawayPage({
 
               return (
                 <article
-                  className="putaway-task-card"
+                  id={`putaway-task-${number}`}
+                  className={`putaway-task-card ${highlightedTaskNumber === number
+                    ? "putaway-task-card-scanned"
+                    : ""
+                    }`}
                   key={task.databaseId || number}
                 >
                   <div className="putaway-task-heading">
@@ -900,6 +1491,87 @@ function PutawayPage({
                           {completeErrors.form}
                         </div>
                       )}
+                      <div className="putaway-scan-controls">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          disabled={actionBusy}
+                          onClick={() =>
+                            openProductScanner(task)
+                          }
+                        >
+                          <ScanLine
+                            size={18}
+                            aria-hidden="true"
+                          />
+                          Verify product
+                        </button>
+
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          disabled={actionBusy}
+                          onClick={() =>
+                            openDestinationScanner(task)
+                          }
+                        >
+                          <MapPin
+                            size={18}
+                            aria-hidden="true"
+                          />
+                          Scan destination
+                        </button>
+                      </div>
+
+                      {verification.productMessage && (
+                        <div
+                          className={`putaway-scan-result ${verification.productVerified
+                            ? "putaway-scan-result-success"
+                            : "putaway-scan-result-error"
+                            }`}
+                          role={
+                            verification.productVerified
+                              ? "status"
+                              : "alert"
+                          }
+                        >
+                          {verification.productVerified && (
+                            <CheckCircle2
+                              size={17}
+                              aria-hidden="true"
+                            />
+                          )}
+
+                          <span>
+                            {verification.productMessage}
+                          </span>
+                        </div>
+                      )}
+
+                      {verification.destinationMessage && (
+                        <div
+                          className={`putaway-scan-result ${verification.destinationVerified
+                            ? "putaway-scan-result-success"
+                            : "putaway-scan-result-error"
+                            }`}
+                          role={
+                            verification.destinationVerified
+                              ? "status"
+                              : "alert"
+                          }
+                        >
+                          {verification.destinationVerified && (
+                            <CheckCircle2
+                              size={17}
+                              aria-hidden="true"
+                            />
+                          )}
+
+                          <span>
+                            {verification.destinationMessage}
+                          </span>
+                        </div>
+                      )}
                       <div className="form-grid">
                         <div className="form-field">
                           <label htmlFor={`destination-${number}`}>
@@ -1036,6 +1708,42 @@ function PutawayPage({
           </div>
         )}
       </section>
+
+      {scannerContext && (
+        <BarcodeScanner
+          title={
+            scannerContext.type ===
+              "task"
+              ? "Scan putaway task"
+              : scannerContext.type ===
+                "product"
+                ? "Verify product"
+                : "Scan destination location"
+          }
+          instructions={
+            scannerContext.type ===
+              "task"
+              ? "Scan a putaway task barcode beginning with PUT."
+              : scannerContext.type ===
+                "product"
+                ? "Scan the product assigned to this putaway task."
+                : "Scan the destination location barcode beginning with LOC."
+          }
+          expectedEntityType={
+            scannerContext.type ===
+              "task"
+              ? "putaway"
+              : scannerContext.type ===
+                "product"
+                ? "product"
+                : "location"
+          }
+          onScan={handlePutawayScan}
+          onClose={
+            closePutawayScanner
+          }
+        />
+      )}
     </div>
   );
 }

@@ -9,9 +9,11 @@ import {
   ClipboardCheck,
   LoaderCircle,
   PackageSearch,
+  ScanLine,
   Search,
   Scale,
 } from "lucide-react";
+import BarcodeScanner from "../components/BarcodeScanner";
 import { stockCountReasons } from "../data/stockCountData";
 import { fetchProductLocationBalance } from "../services/stockCountService";
 
@@ -63,6 +65,11 @@ function StockCountsPage({
     useState(false);
   const [balanceLoading, setBalanceLoading] =
     useState(false);
+  const [scannerOpen, setScannerOpen] =
+    useState(false);
+
+  const [productScanFeedback, setProductScanFeedback] =
+    useState(null);
 
   const selectedProduct = products.find(
     (product) =>
@@ -194,34 +201,65 @@ function StockCountsPage({
     });
   }, [searchQuery, stockCounts]);
 
+  function selectCountProduct(
+    product,
+    scanned = false
+  ) {
+    const productSku =
+      product?.sku || "";
+
+    const productLocation =
+      product?.location &&
+        product.location !== "Unassigned"
+        ? product.location
+        : "";
+
+    setFormData((current) => ({
+      ...current,
+      productSku,
+      location: productLocation,
+      systemQuantity: "",
+      countedQuantity: "",
+      reason: "",
+    }));
+
+    setErrors((current) => ({
+      ...current,
+      productSku: "",
+      location: "",
+      countedQuantity: "",
+      reason: "",
+      form: "",
+    }));
+
+    setProductScanFeedback(
+      product
+        ? {
+          type: scanned
+            ? "success"
+            : "info",
+          message: scanned
+            ? `${product.sku} | ${product.name} verified`
+            : `${product.sku} | ${product.name} selected manually`,
+        }
+        : null
+    );
+  }
+
   function handleChange(event) {
     const { name, value } = event.target;
 
     switch (name) {
       case "productSku": {
         const product = products.find(
-          (item) => item.sku === value
+          (item) =>
+            item.sku === value
         );
 
-        setFormData((current) => ({
-          ...current,
-          productSku: value,
-          location:
-            product?.location &&
-            product.location !== "Unassigned"
-              ? product.location
-              : "",
-          systemQuantity: "",
-          countedQuantity: "",
-        }));
-
-        setErrors((current) => ({
-          ...current,
-          productSku: "",
-          location: "",
-          countedQuantity: "",
-          form: "",
-        }));
+        selectCountProduct(
+          product || null,
+          false
+        );
 
         break;
       }
@@ -231,13 +269,18 @@ function StockCountsPage({
           ...current,
           location: value,
           systemQuantity: "",
+          countedQuantity: "",
+          reason: "",
         }));
 
         setErrors((current) => ({
           ...current,
           location: "",
+          countedQuantity: "",
+          reason: "",
           form: "",
         }));
+
         break;
 
       case "countedQuantity":
@@ -269,6 +312,120 @@ function StockCountsPage({
       default:
         break;
     }
+  }
+
+  function openProductScanner() {
+    setProductScanFeedback(null);
+    setScannerOpen(true);
+  }
+
+  function closeProductScanner() {
+    setScannerOpen(false);
+  }
+
+  function handleProductScan(
+    scanResult
+  ) {
+    const normalizedScanValue =
+      String(
+        scanResult?.normalizedValue ||
+        scanResult?.value ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const product = products.find(
+      (item) => {
+        const productCode =
+          String(
+            item.scanCode ||
+            item.barcode ||
+            ""
+          )
+            .trim()
+            .toUpperCase();
+
+        return (
+          productCode ===
+          normalizedScanValue
+        );
+      }
+    );
+
+    if (!product) {
+      setProductScanFeedback({
+        type: "error",
+        message:
+          "The scanned product does not exist or is unavailable.",
+      });
+
+      setErrors((current) => ({
+        ...current,
+        productSku:
+          "The scanned product could not be selected.",
+        form: "",
+      }));
+
+      setScannerOpen(false);
+      return;
+    }
+
+    if (
+      product.isActive === false ||
+      product.status === "Inactive"
+    ) {
+      setProductScanFeedback({
+        type: "error",
+        message:
+          "The scanned product is inactive.",
+      });
+
+      setErrors((current) => ({
+        ...current,
+        productSku:
+          "Inactive products cannot be counted.",
+        form: "",
+      }));
+
+      setScannerOpen(false);
+      return;
+    }
+
+    selectCountProduct(
+      product,
+      true
+    );
+
+    setScannerOpen(false);
+  }
+
+  function renderProductScanFeedback() {
+    if (!productScanFeedback) {
+      return null;
+    }
+
+    return (
+      <div
+        className={`count-scan-feedback count-scan-feedback-${productScanFeedback.type}`}
+        role={
+          productScanFeedback.type === "error"
+            ? "alert"
+            : "status"
+        }
+      >
+        {productScanFeedback.type === "success" && (
+          <CheckCircle2
+            size={17}
+            aria-hidden="true"
+          />
+        )}
+
+        <span>
+          {productScanFeedback.message}
+        </span>
+      </div>
+    );
   }
 
   function validateForm() {
@@ -381,6 +538,8 @@ function StockCountsPage({
 
       setFormData(emptyCountForm);
       setErrors({});
+      setProductScanFeedback(null);
+      setScannerOpen(false);
     } catch (error) {
       const message =
         error instanceof Error
@@ -511,9 +670,27 @@ function StockCountsPage({
 
             <div className="form-grid">
               <div className="form-field form-field-full">
-                <label htmlFor="productSku">
-                  Inventory product
-                </label>
+                <div className="count-field-header">
+                  <label htmlFor="productSku">
+                    Inventory product
+                  </label>
+
+                  <button
+                    type="button"
+                    className="secondary-button count-scan-button"
+                    disabled={
+                      submitting ||
+                      balanceLoading
+                    }
+                    onClick={openProductScanner}
+                  >
+                    <ScanLine
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    Scan product
+                  </button>
+                </div>
 
                 <select
                   id="productSku"
@@ -534,14 +711,18 @@ function StockCountsPage({
 
                   {products.map((product) => (
                     <option
-                      key={product.id}
+                      key={
+                        product.id ||
+                        product.sku
+                      }
                       value={product.sku}
                     >
-                      {product.sku} |{" "}
-                      {product.name}
+                      {product.sku} | {product.name}
                     </option>
                   ))}
                 </select>
+
+                {renderProductScanFeedback()}
 
                 {errors.productSku && (
                   <p className="field-error">
@@ -946,6 +1127,16 @@ function StockCountsPage({
           </div>
         )}
       </section>
+
+      {scannerOpen && (
+        <BarcodeScanner
+          title="Scan stock count product"
+          instructions="Scan the inventory product barcode. Product codes begin with PRD."
+          expectedEntityType="product"
+          onScan={handleProductScan}
+          onClose={closeProductScanner}
+        />
+      )}
     </div>
   );
 }
