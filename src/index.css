@@ -4830,3 +4830,71 @@ textarea:focus-visible {
     width: 100%;
   }
 }
+
+/* Stock count product scanning */
+
+.count-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+
+.count-field-header label {
+  margin-bottom: 0;
+}
+
+.count-scan-button {
+  min-height: 38px;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 0.76rem;
+}
+
+.count-scan-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.count-scan-feedback svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.count-scan-feedback-success {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.count-scan-feedback-info {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.count-scan-feedback-error {
+  color: #991b1b;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+@media (max-width: 620px) {
+  .count-field-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .count-scan-button {
+    width: 100%;
+  }
+}
