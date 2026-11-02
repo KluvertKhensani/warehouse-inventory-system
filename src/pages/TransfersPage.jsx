@@ -10,8 +10,10 @@ import {
   CheckCircle2,
   LoaderCircle,
   MapPin,
+  ScanLine,
   Search,
 } from "lucide-react";
+import BarcodeScanner from "../components/BarcodeScanner";
 import { transferReasons } from "../data/transferData";
 import { fetchProductLocationBalance } from "../services/inventoryBalanceService";
 
@@ -45,6 +47,16 @@ function TransfersPage({
     useState("");
   const [submitting, setSubmitting] =
     useState(false);
+
+  const [scannerContext, setScannerContext] =
+    useState(null);
+
+  const [scanFeedback, setScanFeedback] =
+    useState({
+      product: null,
+      source: null,
+      destination: null,
+    });
 
   const [
     sourceBalanceLoading,
@@ -162,11 +174,33 @@ function TransfersPage({
 
   const destinationLocations = useMemo(() => {
     return activeLocations.filter(
-      (location) =>
-        location.code !==
+      (location) => {
+        const code = String(
+          location.code || ""
+        ).toUpperCase();
+
+        const restricted =
+          location.isRestricted === true ||
+          location.status === "Restricted";
+
+        const receiving =
+          code.startsWith(
+            "JHB-RECEIVING-"
+          );
+
+        const quarantine =
+          code.includes(
+            "QUARANTINE"
+          );
+
+        return (
+          location.code !==
           formData.sourceLocation &&
-        !location.isRestricted &&
-        location.status !== "Restricted"
+          !restricted &&
+          !receiving &&
+          !quarantine
+        );
+      }
     );
   }, [
     activeLocations,
@@ -206,77 +240,195 @@ function TransfersPage({
     setSourceBalance(emptySourceBalance);
   }
 
+  function updateScanFeedback(
+    field,
+    feedback
+  ) {
+    setScanFeedback((current) => ({
+      ...current,
+      [field]: feedback,
+    }));
+  }
+
+  function selectTransferProduct(
+    product
+  ) {
+    const defaultSource =
+      product?.location &&
+        product.location !== "Unassigned"
+        ? product.location
+        : "";
+
+    setFormData((current) => ({
+      ...current,
+      productSku:
+        product?.sku || "",
+      sourceLocation:
+        defaultSource,
+      destinationLocation: "",
+      quantity: "",
+    }));
+
+    resetSourceBalance();
+
+    setErrors((current) => ({
+      ...current,
+      productSku: "",
+      sourceLocation: "",
+      destinationLocation: "",
+      quantity: "",
+      form: "",
+    }));
+
+    setScanFeedback({
+      product: product
+        ? {
+          type: "success",
+          message:
+            `${product.sku} | ` +
+            `${product.name} selected`,
+        }
+        : null,
+      source: null,
+      destination: null,
+    });
+  }
+
+  function selectSourceLocation(
+    location,
+    scanned = false
+  ) {
+    const locationCode =
+      location?.code || "";
+
+    setFormData((current) => ({
+      ...current,
+      sourceLocation:
+        locationCode,
+      destinationLocation:
+        current.destinationLocation ===
+          locationCode
+          ? ""
+          : current.destinationLocation,
+      quantity: "",
+    }));
+
+    resetSourceBalance();
+
+    setErrors((current) => ({
+      ...current,
+      sourceLocation: "",
+      destinationLocation: "",
+      quantity: "",
+      form: "",
+    }));
+
+    updateScanFeedback(
+      "source",
+      locationCode
+        ? {
+          type: scanned
+            ? "success"
+            : "info",
+          message: scanned
+            ? `${locationCode} verified as the source location`
+            : `${locationCode} selected manually`,
+        }
+        : null
+    );
+
+    setScanFeedback((current) => ({
+      ...current,
+      destination: null,
+    }));
+  }
+
+  function selectDestinationLocation(
+    location,
+    scanned = false
+  ) {
+    const locationCode =
+      location?.code || "";
+
+    setFormData((current) => ({
+      ...current,
+      destinationLocation:
+        locationCode,
+    }));
+
+    setErrors((current) => ({
+      ...current,
+      destinationLocation: "",
+      form: "",
+    }));
+
+    updateScanFeedback(
+      "destination",
+      locationCode
+        ? {
+          type: scanned
+            ? "success"
+            : "info",
+          message: scanned
+            ? `${locationCode} verified as the destination location`
+            : `${locationCode} selected manually`,
+        }
+        : null
+    );
+  }
+
   function handleChange(event) {
     const { name, value } = event.target;
 
     switch (name) {
       case "productSku": {
         const product = products.find(
-          (item) => item.sku === value
+          (item) =>
+            item.sku === value
         );
 
-        setFormData((current) => ({
-          ...current,
-          productSku: value,
-          sourceLocation:
-            product?.location &&
-            product.location !== "Unassigned"
-              ? product.location
-              : "",
-          destinationLocation: "",
-          quantity: "",
-        }));
+        selectTransferProduct(
+          product || null
+        );
 
-        resetSourceBalance();
-
-        setErrors((current) => ({
+        setScanFeedback((current) => ({
           ...current,
-          productSku: "",
-          sourceLocation: "",
-          destinationLocation: "",
-          quantity: "",
-          form: "",
+          product: null,
         }));
 
         break;
       }
 
-      case "sourceLocation":
-        setFormData((current) => ({
-          ...current,
-          sourceLocation: value,
-          destinationLocation:
-            current.destinationLocation === value
-              ? ""
-              : current.destinationLocation,
-          quantity: "",
-        }));
 
-        resetSourceBalance();
+      case "sourceLocation": {
+        const location =
+          activeLocations.find(
+            (item) =>
+              item.code === value
+          );
 
-        setErrors((current) => ({
-          ...current,
-          sourceLocation: "",
-          destinationLocation: "",
-          quantity: "",
-          form: "",
-        }));
+        selectSourceLocation(
+          location || null,
+          false
+        );
 
         break;
+      }
 
-      case "destinationLocation":
-        setFormData((current) => ({
-          ...current,
-          destinationLocation: value,
-        }));
+      case "destinationLocation": {
+        const location =
+          destinationLocations.find(
+            (item) =>
+              item.code === value
+          );
 
-        setErrors((current) => ({
-          ...current,
-          destinationLocation: "",
-          form: "",
-        }));
+        selectDestinationLocation(
+          location || null,
+          false
+        );
 
         break;
+      }
 
       case "quantity":
         setFormData((current) => ({
@@ -309,6 +461,366 @@ function TransfersPage({
       default:
         break;
     }
+  }
+
+  function openTransferScanner(type) {
+    updateScanFeedback(
+      type,
+      null
+    );
+
+    setScannerContext({
+      type,
+    });
+  }
+
+  function closeTransferScanner() {
+    setScannerContext(null);
+  }
+
+  function handleProductScan(
+    scanResult
+  ) {
+    const normalizedScanValue =
+      String(
+        scanResult?.normalizedValue || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const product = products.find(
+      (item) =>
+        String(item.barcode || "")
+          .trim()
+          .toUpperCase() ===
+        normalizedScanValue
+    );
+
+    if (!product) {
+      updateScanFeedback(
+        "product",
+        {
+          type: "error",
+          message:
+            "The scanned product does not exist or is inactive.",
+        }
+      );
+
+      setErrors((current) => ({
+        ...current,
+        productSku:
+          "The scanned product is unavailable.",
+        form: "",
+      }));
+
+      setScannerContext(null);
+      return;
+    }
+
+    if (
+      product.isActive === false
+    ) {
+      updateScanFeedback(
+        "product",
+        {
+          type: "error",
+          message:
+            "The scanned product is inactive.",
+        }
+      );
+
+      setErrors((current) => ({
+        ...current,
+        productSku:
+          "Inactive products cannot be transferred.",
+        form: "",
+      }));
+
+      setScannerContext(null);
+      return;
+    }
+
+    selectTransferProduct(product);
+    setScannerContext(null);
+  }
+
+  function findScannedLocation(
+    scanResult
+  ) {
+    const normalizedScanValue =
+      String(
+        scanResult?.normalizedValue || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    return (
+      locations.find(
+        (location) =>
+          String(
+            location.scanCode || ""
+          )
+            .trim()
+            .toUpperCase() ===
+          normalizedScanValue
+      ) || null
+    );
+  }
+
+  function getLocationScanError(
+    location,
+    type
+  ) {
+    if (!location) {
+      return (
+        "The scanned location does not exist " +
+        "or is not available."
+      );
+    }
+
+    if (
+      location.isActive === false ||
+      location.status === "Inactive"
+    ) {
+      return (
+        "The scanned location is inactive."
+      );
+    }
+
+    const locationCode =
+      String(location.code || "")
+        .trim()
+        .toUpperCase();
+
+    if (
+      location.isRestricted === true ||
+      location.status === "Restricted"
+    ) {
+      return (
+        "Restricted locations require a controlled workflow."
+      );
+    }
+
+    if (
+      locationCode.includes(
+        "QUARANTINE"
+      )
+    ) {
+      return (
+        "Quarantine locations cannot be used in a normal transfer."
+      );
+    }
+
+    if (
+      type === "destination" &&
+      locationCode.startsWith(
+        "JHB-RECEIVING-"
+      )
+    ) {
+      return (
+        "A receiving area cannot be used as the destination."
+      );
+    }
+
+    return "";
+  }
+
+  function handleSourceLocationScan(
+    scanResult
+  ) {
+    const location =
+      findScannedLocation(
+        scanResult
+      );
+
+    const validationError =
+      getLocationScanError(
+        location,
+        "source"
+      );
+
+    if (validationError) {
+      updateScanFeedback(
+        "source",
+        {
+          type: "error",
+          message:
+            validationError,
+        }
+      );
+
+      setErrors((current) => ({
+        ...current,
+        sourceLocation:
+          validationError,
+        form: "",
+      }));
+
+      setScannerContext(null);
+      return;
+    }
+
+    if (
+      location.code ===
+      formData.destinationLocation
+    ) {
+      updateScanFeedback(
+        "source",
+        {
+          type: "error",
+          message:
+            "The source location cannot match the destination location.",
+        }
+      );
+
+      setErrors((current) => ({
+        ...current,
+        sourceLocation:
+          "Choose a different source location.",
+        form: "",
+      }));
+
+      setScannerContext(null);
+      return;
+    }
+
+    selectSourceLocation(
+      location,
+      true
+    );
+
+    setScannerContext(null);
+  }
+
+  function handleDestinationLocationScan(
+    scanResult
+  ) {
+    const location =
+      findScannedLocation(
+        scanResult
+      );
+
+    const validationError =
+      getLocationScanError(
+        location,
+        "destination"
+      );
+
+    if (validationError) {
+      updateScanFeedback(
+        "destination",
+        {
+          type: "error",
+          message:
+            validationError,
+        }
+      );
+
+      setErrors((current) => ({
+        ...current,
+        destinationLocation:
+          validationError,
+        form: "",
+      }));
+
+      setScannerContext(null);
+      return;
+    }
+
+    if (
+      location.code ===
+      formData.sourceLocation
+    ) {
+      updateScanFeedback(
+        "destination",
+        {
+          type: "error",
+          message:
+            "The destination cannot match the source location.",
+        }
+      );
+
+      setErrors((current) => ({
+        ...current,
+        destinationLocation:
+          "Choose a different destination location.",
+        form: "",
+      }));
+
+      setScannerContext(null);
+      return;
+    }
+
+    selectDestinationLocation(
+      location,
+      true
+    );
+
+    setScannerContext(null);
+  }
+
+  function handleTransferScan(
+    scanResult
+  ) {
+    if (
+      scannerContext?.type ===
+      "product"
+    ) {
+      handleProductScan(
+        scanResult
+      );
+      return;
+    }
+
+    if (
+      scannerContext?.type ===
+      "source"
+    ) {
+      handleSourceLocationScan(
+        scanResult
+      );
+      return;
+    }
+
+    if (
+      scannerContext?.type ===
+      "destination"
+    ) {
+      handleDestinationLocationScan(
+        scanResult
+      );
+    }
+  }
+
+  function renderScanFeedback(field) {
+    const feedback =
+      scanFeedback[field];
+
+    if (!feedback) {
+      return null;
+    }
+
+    return (
+      <div
+        className={`transfer-scan-feedback transfer-scan-feedback-${feedback.type}`}
+        role={
+          feedback.type === "error"
+            ? "alert"
+            : "status"
+        }
+      >
+        {feedback.type === "success" && (
+          <CheckCircle2
+            size={17}
+            aria-hidden="true"
+          />
+        )}
+
+        <span>
+          {feedback.message}
+        </span>
+      </div>
+    );
   }
 
   function validateForm() {
@@ -439,6 +951,14 @@ function TransfersPage({
       setFormData(emptyTransferForm);
       setSourceBalance(emptySourceBalance);
       setErrors({});
+
+      setScanFeedback({
+        product: null,
+        source: null,
+        destination: null,
+      });
+
+      setScannerContext(null);
     } catch (error) {
       const message =
         error instanceof Error
@@ -472,9 +992,9 @@ function TransfersPage({
 
   const sourceBalanceMessage =
     formData.productSku &&
-    formData.sourceLocation &&
-    !sourceBalanceLoading &&
-    !sourceBalance.balanceExists
+      formData.sourceLocation &&
+      !sourceBalanceLoading &&
+      !sourceBalance.balanceExists
       ? "No stock is recorded at this source location."
       : "";
 
@@ -586,9 +1106,28 @@ function TransfersPage({
 
             <div className="form-grid">
               <div className="form-field form-field-full">
-                <label htmlFor="productSku">
-                  Inventory product
-                </label>
+                <div className="transfer-field-header">
+                  <label htmlFor="productSku">
+                    Inventory product
+                  </label>
+
+                  <button
+                    type="button"
+                    className="secondary-button transfer-scan-button"
+                    disabled={submitting}
+                    onClick={() =>
+                      openTransferScanner(
+                        "product"
+                      )
+                    }
+                  >
+                    <ScanLine
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    Scan product
+                  </button>
+                </div>
 
                 <select
                   id="productSku"
@@ -615,6 +1154,10 @@ function TransfersPage({
                   ))}
                 </select>
 
+                {renderScanFeedback(
+                  "product"
+                )}
+
                 {errors.productSku && (
                   <p className="field-error">
                     {errors.productSku}
@@ -623,9 +1166,32 @@ function TransfersPage({
               </div>
 
               <div className="form-field">
-                <label htmlFor="sourceLocation">
-                  Source location
-                </label>
+                <div className="transfer-field-header">
+                  <label htmlFor="sourceLocation">
+                    Source location
+                  </label>
+
+                  <button
+                    type="button"
+                    className="secondary-button transfer-scan-button"
+                    disabled={
+                      submitting ||
+                      sourceBalanceLoading ||
+                      !formData.productSku
+                    }
+                    onClick={() =>
+                      openTransferScanner(
+                        "source"
+                      )
+                    }
+                  >
+                    <ScanLine
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    Scan source
+                  </button>
+                </div>
 
                 <select
                   id="sourceLocation"
@@ -633,7 +1199,8 @@ function TransfersPage({
                   value={formData.sourceLocation}
                   disabled={
                     submitting ||
-                    sourceBalanceLoading
+                    sourceBalanceLoading ||
+                    !formData.productSku
                   }
                   aria-invalid={Boolean(
                     errors.sourceLocation
@@ -647,7 +1214,10 @@ function TransfersPage({
                   {activeLocations.map(
                     (location) => (
                       <option
-                        key={location.id}
+                        key={
+                          location.id ||
+                          location.code
+                        }
                         value={location.code}
                       >
                         {location.code}
@@ -655,6 +1225,10 @@ function TransfersPage({
                     )
                   )}
                 </select>
+
+                {renderScanFeedback(
+                  "source"
+                )}
 
                 {errors.sourceLocation && (
                   <p className="field-error">
@@ -664,9 +1238,32 @@ function TransfersPage({
               </div>
 
               <div className="form-field">
-                <label htmlFor="destinationLocation">
-                  Destination location
-                </label>
+                <div className="transfer-field-header">
+                  <label htmlFor="destinationLocation">
+                    Destination location
+                  </label>
+
+                  <button
+                    type="button"
+                    className="secondary-button transfer-scan-button"
+                    disabled={
+                      submitting ||
+                      sourceBalanceLoading ||
+                      !formData.sourceLocation
+                    }
+                    onClick={() =>
+                      openTransferScanner(
+                        "destination"
+                      )
+                    }
+                  >
+                    <ScanLine
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    Scan destination
+                  </button>
+                </div>
 
                 <select
                   id="destinationLocation"
@@ -691,7 +1288,10 @@ function TransfersPage({
                   {destinationLocations.map(
                     (location) => (
                       <option
-                        key={location.id}
+                        key={
+                          location.id ||
+                          location.code
+                        }
                         value={location.code}
                       >
                         {location.code}
@@ -699,6 +1299,10 @@ function TransfersPage({
                     )
                   )}
                 </select>
+
+                {renderScanFeedback(
+                  "destination"
+                )}
 
                 {errors.destinationLocation && (
                   <p className="field-error">
@@ -1032,12 +1636,11 @@ function TransfersPage({
 
                   <div className="transfer-status-column">
                     <span
-                      className={`transfer-status ${
-                        transfer.status ===
+                      className={`transfer-status ${transfer.status ===
                         "Completed"
-                          ? "transfer-status-completed"
-                          : "transfer-status-draft"
-                      }`}
+                        ? "transfer-status-completed"
+                        : "transfer-status-draft"
+                        }`}
                     >
                       {transfer.status}
                     </span>
@@ -1072,6 +1675,41 @@ function TransfersPage({
           </div>
         )}
       </section>
+
+      {scannerContext && (
+        <BarcodeScanner
+          title={
+            scannerContext.type ===
+              "product"
+              ? "Scan transfer product"
+              : scannerContext.type ===
+                "source"
+                ? "Scan source location"
+                : "Scan destination location"
+          }
+          instructions={
+            scannerContext.type ===
+              "product"
+              ? "Scan the inventory product barcode. Product codes begin with PRD."
+              : scannerContext.type ===
+                "source"
+                ? "Scan the physical source location. Location codes begin with LOC."
+                : "Scan the destination storage location. Location codes begin with LOC."
+          }
+          expectedEntityType={
+            scannerContext.type ===
+              "product"
+              ? "product"
+              : "location"
+          }
+          onScan={
+            handleTransferScan
+          }
+          onClose={
+            closeTransferScanner
+          }
+        />
+      )}
     </div>
   );
 }
